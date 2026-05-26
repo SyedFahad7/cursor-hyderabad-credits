@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { verifyAdminSession } from "@/lib/adminAuth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { parseCreditsCsv } from "@/lib/csv";
+import { getEventBySlug } from "@/lib/events";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,6 +11,19 @@ export const maxDuration = 60;
 export async function POST(req: Request) {
   if (!(await verifyAdminSession())) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const eventSlug = (searchParams.get("event") ?? "").trim();
+  if (!eventSlug) {
+    return NextResponse.json(
+      { message: "Missing ?event=<slug>." },
+      { status: 400 },
+    );
+  }
+  const event = await getEventBySlug(eventSlug);
+  if (!event) {
+    return NextResponse.json({ message: "Unknown event." }, { status: 404 });
   }
 
   const text = await req.text();
@@ -38,13 +52,18 @@ export async function POST(req: Request) {
   const sb = getSupabaseAdmin();
   const urls = parsed.rows.map((r) => r.cursor_url);
 
+  // cursor_url has a global unique constraint — a URL can only ever live in one event.
   const { data: existing } = await sb
     .from("credit_links")
     .select("cursor_url")
     .in("cursor_url", urls);
-  const existingSet = new Set((existing ?? []).map((r: { cursor_url: string }) => r.cursor_url));
+  const existingSet = new Set(
+    (existing ?? []).map((r: { cursor_url: string }) => r.cursor_url),
+  );
 
-  const toInsert = parsed.rows.filter((r) => !existingSet.has(r.cursor_url));
+  const toInsert = parsed.rows
+    .filter((r) => !existingSet.has(r.cursor_url))
+    .map((r) => ({ ...r, event_id: event.id }));
   const skipped = parsed.rows.length - toInsert.length;
 
   if (toInsert.length > 0) {

@@ -1,6 +1,8 @@
-import Link from "next/link";
-import { BrandMark } from "@/components/BrandMark";
+import { ThemeToggle } from "@/components/ThemeToggle";
+import { CursorLogo } from "@/components/CursorLogo";
 import { LogoutButton } from "./LogoutButton";
+import { AdminNav } from "./AdminNav";
+import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -12,36 +14,29 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-line/70 bg-bg-panel/60 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3">
-          <Link href="/admin" className="flex items-center gap-3">
-            <BrandMark size={32} />
-            <span className="text-sm font-medium text-ink">
-              Admin · Cursor Hyderabad
+    <div className="relative min-h-screen overflow-hidden bg-bg transition-colors duration-300">
+      <div className="grid-bg pointer-events-none absolute inset-0" />
+      <ThemeToggle />
+
+      <header className="relative border-b border-line/70 bg-bg-panel/70 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3 md:px-6 2xl:max-w-[1400px] 3xl:max-w-[1600px]">
+          <Link href="/admin" className="flex shrink-0 items-center gap-3">
+            <CursorLogo />
+            <span className="hidden text-[13px] font-medium text-ink-muted sm:inline-flex">
+              <span className="mr-2 text-ink-dim">·</span> Admin
             </span>
           </Link>
-          <nav className="flex items-center gap-1 text-sm">
-            <NavLink href="/admin">Dashboard</NavLink>
-            <NavLink href="/admin/attendees">Attendees</NavLink>
-            <NavLink href="/admin/credits">Credits</NavLink>
-            <NavLink href="/admin/import">Import</NavLink>
+
+          <div className="flex items-center gap-2">
+            <AdminNav />
             <LogoutButton />
-          </nav>
+          </div>
         </div>
       </header>
-      <div className="mx-auto max-w-6xl px-5 py-8">{children}</div>
-    </div>
-  );
-}
 
-function NavLink({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className="rounded-lg px-3 py-1.5 text-ink-muted transition hover:bg-line hover:text-ink"
-    >
-      {children}
-    </Link>
+      <div className="relative mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-8 2xl:max-w-[1400px] 2xl:py-10 3xl:max-w-[1600px]">
+        {children}
+      </div>
+    </div>
   );
 }

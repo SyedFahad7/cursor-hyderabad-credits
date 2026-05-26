@@ -33,7 +33,7 @@ export function getServerEnv() {
 export const publicEvent = {
   name: process.env.NEXT_PUBLIC_EVENT_NAME ?? "Cursor Hyderabad Meetup",
   date: process.env.NEXT_PUBLIC_EVENT_DATE ?? "May 24",
-  host: process.env.NEXT_PUBLIC_EVENT_HOST ?? "Syed Fahad",
+  host: process.env.NEXT_PUBLIC_EVENT_HOST ?? "Fahad",
   organizer:
     process.env.NEXT_PUBLIC_EVENT_ORGANIZER ?? "Cursor Hyderabad, India",
   supportEmail: process.env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "",

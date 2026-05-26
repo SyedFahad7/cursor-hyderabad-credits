@@ -18,7 +18,7 @@ export async function POST(
   const sb = getSupabaseAdmin();
   const { data: attendee, error } = await sb
     .from("attendees")
-    .select("id,email,name,claimed,credit_id")
+    .select("id,event_id,email,name,claimed,credit_id")
     .eq("id", id)
     .single();
 
@@ -32,14 +32,25 @@ export async function POST(
     );
   }
 
-  const { data: credit, error: cErr } = await sb
-    .from("credit_links")
-    .select("cursor_url")
-    .eq("id", attendee.credit_id)
-    .single();
+  const [{ data: credit, error: cErr }, { data: event, error: eErr }] =
+    await Promise.all([
+      sb
+        .from("credit_links")
+        .select("cursor_url")
+        .eq("id", attendee.credit_id)
+        .single(),
+      sb
+        .from("events")
+        .select("name,host,organizer,event_date")
+        .eq("id", attendee.event_id)
+        .single(),
+    ]);
 
   if (cErr || !credit) {
     return NextResponse.json({ message: "Credit link missing." }, { status: 500 });
+  }
+  if (eErr || !event) {
+    return NextResponse.json({ message: "Event missing." }, { status: 500 });
   }
 
   try {
@@ -47,6 +58,7 @@ export async function POST(
       to: attendee.email,
       name: attendee.name,
       creditUrl: credit.cursor_url,
+      event,
     });
   } catch (e) {
     return NextResponse.json(

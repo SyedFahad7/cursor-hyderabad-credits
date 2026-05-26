@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { verifyAdminSession } from "@/lib/adminAuth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { parseAttendeesCsv } from "@/lib/csv";
+import { getEventBySlug } from "@/lib/events";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -10,6 +11,19 @@ export const maxDuration = 60;
 export async function POST(req: Request) {
   if (!(await verifyAdminSession())) {
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
+  const { searchParams } = new URL(req.url);
+  const eventSlug = (searchParams.get("event") ?? "").trim();
+  if (!eventSlug) {
+    return NextResponse.json(
+      { message: "Missing ?event=<slug>." },
+      { status: 400 },
+    );
+  }
+  const event = await getEventBySlug(eventSlug);
+  if (!event) {
+    return NextResponse.json({ message: "Unknown event." }, { status: 404 });
   }
 
   const text = await req.text();
@@ -41,12 +55,15 @@ export async function POST(req: Request) {
   const { data: existing } = await sb
     .from("attendees")
     .select("email")
+    .eq("event_id", event.id)
     .in("email", emails);
   const existingSet = new Set(
     (existing ?? []).map((r: { email: string }) => r.email.toLowerCase()),
   );
 
-  const toInsert = parsed.rows.filter((r) => !existingSet.has(r.email));
+  const toInsert = parsed.rows
+    .filter((r) => !existingSet.has(r.email))
+    .map((r) => ({ ...r, event_id: event.id }));
   const skipped = parsed.rows.length - toInsert.length;
 
   if (toInsert.length > 0) {

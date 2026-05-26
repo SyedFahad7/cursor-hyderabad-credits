@@ -2,20 +2,19 @@ import Link from "next/link";
 import { CursorLogo } from "@/components/CursorLogo";
 import { PublicPage } from "@/components/PublicShell";
 
-export const metadata = { title: "Email not registered" };
+export const metadata = { title: "Event not found" };
 
-export default function InvalidPage() {
+export default function EventNotFound() {
   return (
     <PublicPage>
       <CursorLogo className="mb-8" />
       <div className="w-full panel p-8 text-center">
-        <h1 className="text-xl font-semibold">Email not on the attendee list</h1>
+        <h1 className="text-xl font-semibold">Event not found</h1>
         <p className="mt-2 text-sm text-ink-muted">
-          Only approved attendees can claim credits. Use the same email you
-          registered with on Luma.
+          This event link is invalid or has been disabled.
         </p>
         <Link href="/" className="btn-ghost mt-6">
-          Try another email
+          See active events
         </Link>
       </div>
     </PublicPage>

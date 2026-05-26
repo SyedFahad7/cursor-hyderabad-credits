@@ -1,9 +1,8 @@
 import Link from "next/link";
 import { CursorLogo } from "@/components/CursorLogo";
 import { PublicPage } from "@/components/PublicShell";
-import { publicEvent } from "@/lib/env";
 
-export const metadata = { title: "Check your email — Cursor Hyderabad Meetup" };
+export const metadata = { title: "Check your email" };
 
 export default function SuccessPage() {
   return (
@@ -21,13 +20,8 @@ export default function SuccessPage() {
           arrive in a minute.
         </p>
         <Link href="/" className="btn-ghost mt-6">
-          Back to claim page
+          Back home
         </Link>
-        {publicEvent.supportEmail && (
-          <p className="mt-4 text-xs text-ink-dim">
-            Trouble? Email {publicEvent.supportEmail}
-          </p>
-        )}
       </div>
     </PublicPage>
   );

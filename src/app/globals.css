@@ -52,12 +52,16 @@ body {
   .input {
     @apply w-full rounded-xl border border-line bg-bg-subtle px-4 py-3 text-[15px] text-ink
       placeholder:text-ink-dim outline-none transition-all duration-200
-      focus:border-ink-dim;
+      focus:border-ink-dim
+      2xl:px-5 2xl:py-3.5 2xl:text-[16px]
+      3xl:px-5 3xl:py-4 3xl:text-[17px];
   }
   .btn-primary {
     @apply inline-flex w-full items-center justify-center gap-2 rounded-xl bg-ink px-4 py-3.5
       text-[15px] font-medium text-bg transition-all duration-200
-      hover:opacity-90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50;
+      hover:opacity-90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50
+      2xl:py-4 2xl:text-[16px]
+      3xl:py-[18px] 3xl:text-[17px];
   }
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-bg-subtle px-4 py-2
@@ -67,7 +71,8 @@ body {
     @apply inline-flex items-center gap-2 rounded-full border border-line bg-bg-subtle px-3 py-1 text-xs text-ink-muted;
   }
   .status-badge {
-    @apply inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium transition-colors duration-300;
+    @apply inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium transition-colors duration-300
+      3xl:px-3.5 3xl:py-1.5 3xl:text-[13px];
     background: var(--color-badge);
     color: var(--color-badge-text);
   }
@@ -95,7 +100,7 @@ body {
   border-radius: 8px;
 }
 
-/* Public claim page — mobile: top-aligned, 2xl+: vertically centered */
+/* Public claim page — mobile: top-aligned, laptops+: vertically centered */
 .public-main {
   min-height: 100dvh;
 }
@@ -109,16 +114,25 @@ body {
   justify-content: flex-start;
 }
 
-@media (min-width: 768px) {
-  .public-main-content {
-    padding-top: 0.5rem;
-  }
-}
-
-@media (min-width: 1440px) {
+/* Center vertically as soon as we have enough room (laptops and up) */
+@media (min-width: 1024px) {
   .public-main-content {
     justify-content: center;
     padding-top: 0;
     padding-bottom: 1rem;
+  }
+}
+
+/* Small monitors */
+@media (min-width: 1440px) {
+  .public-main-content {
+    padding-bottom: 1.5rem;
+  }
+}
+
+/* 1440p+ monitors */
+@media (min-width: 1700px) {
+  .public-main-content {
+    padding-bottom: 2rem;
   }
 }

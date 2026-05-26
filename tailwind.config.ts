@@ -6,10 +6,11 @@ const config: Config = {
   theme: {
     screens: {
       sm: "640px",
-      md: "768px", // laptops
-      lg: "1024px",
-      xl: "1280px",
-      "2xl": "1440px", // monitors & large displays
+      md: "768px", // tablets / small laptops
+      lg: "1024px", // laptops
+      xl: "1280px", // large laptops
+      "2xl": "1440px", // small monitors
+      "3xl": "1700px", // 1440p+ monitors and ultrawides
     },
     extend: {
       colors: {
@@ -31,6 +32,20 @@ const config: Config = {
           "ui-sans-serif",
           "system-ui",
           "sans-serif",
+        ],
+      },
+      fontSize: {
+        "fluid-display": [
+          "clamp(2rem, 1.6rem + 1.6vw, 3rem)",
+          { lineHeight: "1.1", letterSpacing: "-0.02em" },
+        ],
+        "fluid-lead": [
+          "clamp(0.95rem, 0.85rem + 0.35vw, 1.125rem)",
+          { lineHeight: "1.55" },
+        ],
+        "fluid-body": [
+          "clamp(0.9rem, 0.85rem + 0.2vw, 1rem)",
+          { lineHeight: "1.5" },
         ],
       },
       transitionDuration: {

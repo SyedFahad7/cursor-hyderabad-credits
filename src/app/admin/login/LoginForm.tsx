@@ -36,9 +36,11 @@ export function LoginForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form onSubmit={onSubmit} className="space-y-4 2xl:space-y-5">
       <label className="block">
-        <span className="mb-2 block text-sm font-medium text-ink">Password</span>
+        <span className="mb-2 block text-sm font-medium text-ink 2xl:text-[15px]">
+          Password
+        </span>
         <input
           type="password"
           required
@@ -51,11 +53,15 @@ export function LoginForm() {
         />
       </label>
       {error && (
-        <p className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+        <p className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-700 dark:text-rose-300/90">
           {error}
         </p>
       )}
-      <button type="submit" disabled={loading || !password} className="btn-primary">
+      <button
+        type="submit"
+        disabled={loading || !password}
+        className="btn-primary"
+      >
         {loading ? "Signing in…" : "Sign in"}
       </button>
     </form>

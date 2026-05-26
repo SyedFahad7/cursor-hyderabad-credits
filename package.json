@@ -4,7 +4,7 @@
   "private": true,
   "description": "Attendee credit claim portal for the Cursor Hyderabad Meetup",
   "scripts": {
-    "dev": "next dev",
+    "dev": "cross-env NODE_TLS_REJECT_UNAUTHORIZED=0 next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
@@ -26,6 +26,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "autoprefixer": "^10.4.20",
+    "cross-env": "^10.1.0",
     "eslint": "^9.15.0",
     "eslint-config-next": "^15.1.11",
     "postcss": "^8.4.49",

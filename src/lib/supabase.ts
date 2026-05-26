@@ -22,8 +22,34 @@ export function getSupabaseAdmin(): SupabaseClient {
   return serverClient;
 }
 
+export type Event = {
+  id: string;
+  slug: string;
+  name: string;
+  tagline: string | null;
+  credit_amount: string | null;
+  event_date: string | null;
+  organizer: string | null;
+  host: string | null;
+  active: boolean;
+  created_at: string;
+};
+
+export type EventStats = {
+  event_id: string;
+  slug: string;
+  name: string;
+  active: boolean;
+  event_date: string | null;
+  total_attendees: number;
+  total_claimed: number;
+  total_credits: number;
+  remaining_credits: number;
+};
+
 export type Attendee = {
   id: string;
+  event_id: string;
   email: string;
   name: string | null;
   claimed: boolean;
@@ -34,6 +60,7 @@ export type Attendee = {
 
 export type CreditLink = {
   id: string;
+  event_id: string;
   cursor_url: string;
   assigned_to: string | null;
   assigned_at: string | null;
@@ -46,6 +73,7 @@ export type DashboardStats = {
   total_claimed: number;
   total_credits: number;
   remaining_credits: number;
+  active_events: number;
 };
 
 export type ClaimOutcome =
@@ -54,4 +82,5 @@ export type ClaimOutcome =
   | "not_found"
   | "no_credits"
   | "rate_limited"
+  | "event_not_found"
   | "error";

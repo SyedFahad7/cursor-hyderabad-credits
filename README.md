@@ -1,36 +1,44 @@
-# Cursor Hyderabad Meetup — Credit Claim Portal
+# Cursor Hyderabad — Credit Claim Portal (multi-event)
 
-Production-ready, self-service portal for distributing **Cursor credits** to approved attendees of the **Cursor Hyderabad Meetup** (hosted by Syed Fahad).
+Production-ready, self-service portal for distributing **Cursor credits** to approved attendees of **any** Cursor Hyderabad community event — meetups, hackathons, Cafe Cursor — from one deployment, hosted by Syed Fahad.
 
-Attendees enter their email → backend validates they're on the approved list → an unused Cursor credit URL is atomically assigned to them → a beautifully branded email is sent via Resend with their unique link. No raw credit URLs are ever exposed in the browser.
+Each event has its own attendee list, its own credit pool, and its own branded URL at `/e/<slug>`. Attendees enter their email → backend validates they're on that event's approved list → an unused Cursor credit URL from that event's pool is atomically assigned → a branded email is sent via Resend with their unique link. Raw credit URLs are never exposed in the browser.
 
-> Built as a Supabase + Resend rewrite of the original [cursorcommunityled/cursor-credits-portal](https://github.com/cursorcommunityled/cursor-credits-portal), trimmed down to one simple flow: **email in → credit link mailed**.
+> Built as a Supabase + Resend rewrite of the original [cursorcommunityled/cursor-credits-portal](https://github.com/cursorcommunityled/cursor-credits-portal), trimmed down to one simple flow: **email in → credit link mailed**, and extended to support an unlimited number of events out of one codebase.
 
 ---
 
 ## ✨ Features
 
+**Multi-event by design**
+- `events` table is the source of truth. Each event has a slug, brand fields (name, tagline, credit amount, date, host, organizer), and an `active` flag.
+- One person can exist in many events — uniqueness is per `(event_id, email)`.
+- Each event has its own credit pool. Crediting an attendee in one event never burns a credit from another.
+
 **Attendee flow**
+- Public landing `/` auto-redirects to the only active event, or shows a picker if you have many.
+- `/e/<slug>` per-event branded claim page (the URL you put in your Luma blast).
 - Single-field email claim form, mobile-first dark UI with the Hyderabad-skyline gradient.
-- Live counters: `N credits available`, `X of Y attendees have claimed`.
+- Live counters per event: `N credits available`, `X of Y attendees have claimed`.
 - Atomic claim: `FOR UPDATE SKIP LOCKED` guarantees no two attendees ever get the same credit, even under thundering-herd traffic.
-- Friendly states for `success` / `already-claimed` / `not-on-list` / `no-credits` / `rate-limited`.
-- Beautifully styled HTML email via Resend.
+- Friendly inline states for `success` / `already-claimed` / `not-on-list` / `no-credits` / `rate-limited` / `event-not-found`.
+- Beautifully styled HTML email via Resend, customised per event (name, host, date).
 
 **Admin dashboard** (`/admin`, password-gated)
-- Stats: total attendees, claimed, remaining credits, total credit pool.
+- Cross-event rollup + per-event breakdown table (attendees, claimed, remaining, pool).
 - 24h analytics: attempts, success rate, not-found rate.
-- Recent successful claims + latest attempts feed.
-- **Attendees**: search by email, filter (all / claimed / unclaimed), **resend** credit email, **revoke** assigned credit.
-- **Credits**: full view of the credit pool (used / available).
-- **Import**: drag-and-drop CSV upload for attendees and credit URLs.
-- **Export**: one-click CSV of all claims with assigned URLs.
+- Recent successful claims + latest attempts feed (with event labels).
+- **Events**: full CRUD — create, toggle active, delete (only if empty).
+- **Attendees**: search by email, filter by event + status (all / claimed / unclaimed), **resend** credit email, **revoke** assigned credit.
+- **Credits**: full view of the credit pool per event (used / available).
+- **Import**: drag-and-drop CSV upload — select target event, then upload attendees or credit URLs.
+- **Export**: one-click CSV of all claims with event metadata, optionally filtered by `?event=<slug>`.
 
 **Security**
 - All credit-assignment logic runs server-side (Next.js route handlers + Postgres function).
 - Supabase Row-Level Security is enabled on every table; only the **service role** key (server-only) bypasses it. The browser never sees the service role.
 - Admin auth uses a strong-password HMAC-signed cookie with timing-safe comparison.
-- Per-IP sliding-window rate limit on the public claim endpoint (defaults: 5 attempts / 60s).
+- Per-`(event, IP)` sliding-window rate limit on the public claim endpoint (defaults: 5 attempts / 60s).
 - Security headers via `vercel.json` (XFO, nosniff, referrer-policy, permissions-policy).
 - All admin and claim API routes return `Cache-Control: no-store`.
 - Email send failures roll back the claim so credits are never lost.
@@ -62,16 +70,17 @@ npm install
 ### 2. Provision Supabase
 
 1. Create a project at <https://supabase.com>.
-2. In the SQL editor, paste and run **`supabase/schema.sql`**. This creates:
-   - `attendees`, `credit_links`, `claim_attempts` tables
-   - `dashboard_stats` view
-   - `claim_attendee_credit(email)` atomic claim function
+2. In the SQL editor, paste and run **`supabase/schema.sql`** for a fresh install. This creates:
+   - `events`, `attendees`, `credit_links`, `claim_attempts` tables
+   - `dashboard_stats` (global rollup) + `event_stats` (per-event) views
+   - `claim_attendee_credit(email, event_slug)` atomic claim function
    - `revoke_credit(attendee_id)` function
-   - Row-Level Security enabled (anon has zero access; the service role key bypasses it)
-3. Go to **Project Settings → API** and copy:
+   - Row-Level Security enabled on every table (anon has zero access; service role bypasses)
+3. **Already running the single-event version?** Run **`supabase/multi-event-migration.sql`** instead. It's idempotent, preserves all your existing attendees + credits by backfilling them into a default `hyderabad-meetup-may-24` event, and adds the new tables/columns/functions without dropping anything.
+4. Go to **Project Settings → API** and copy:
    - `URL` → `NEXT_PUBLIC_SUPABASE_URL`
-   - `anon public` → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `service_role` → `SUPABASE_SERVICE_ROLE_KEY` **(server-only, keep secret)**
+   - `publishable` (sb_publishable_…) → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `secret` (sb_secret_…) → `SUPABASE_SERVICE_ROLE_KEY` **(server-only, keep secret)**
 
 ### 3. Provision Resend
 
@@ -221,7 +230,7 @@ The DB is the source of truth and concurrency-safe — even if 1000 attendees hi
 > - Credits work for *individual* accounts, not Team plans.
 >
 > Presented by **Cursor Hyderabad, India**
-> Hosted by Syed Fahad
+> Hosted by Fahad
 
 A plain-text fallback is sent automatically.
 

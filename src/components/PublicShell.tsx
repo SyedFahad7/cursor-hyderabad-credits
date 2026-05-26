@@ -21,7 +21,15 @@ export function PublicPage({
 }) {
   return (
     <PublicShell>
-      <main className="public-main mx-auto flex w-full max-w-[420px] flex-col px-5 pb-8 pt-16 sm:pt-20 md:max-w-[440px] md:px-6 md:pt-20 2xl:max-w-[460px] 2xl:pb-10">
+      <main
+        className="public-main mx-auto flex w-full max-w-[420px] flex-col
+                   px-5 pt-14 pb-8
+                   sm:pt-16
+                   md:max-w-[440px] md:px-6 md:pt-20
+                   lg:max-w-[460px]
+                   2xl:max-w-[500px]
+                   3xl:max-w-[560px]"
+      >
         <div className="public-main-content">{children}</div>
         {footer && <Footer />}
       </main>

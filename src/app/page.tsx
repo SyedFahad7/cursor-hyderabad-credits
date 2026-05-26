@@ -1,65 +1,80 @@
-import { ClaimForm } from "@/components/ClaimForm";
+import Link from "next/link";
+import { redirect } from "next/navigation";
 import { CursorLogo } from "@/components/CursorLogo";
 import { PublicPage } from "@/components/PublicShell";
-import { getSupabaseAdmin, type DashboardStats } from "@/lib/supabase";
+import { listActiveEvents } from "@/lib/events";
 
-export const revalidate = 15;
-
-async function getStats(): Promise<DashboardStats | null> {
-  try {
-    const sb = getSupabaseAdmin();
-    const { data, error } = await sb
-      .from("dashboard_stats")
-      .select("*")
-      .single();
-    if (error) return null;
-    return data as DashboardStats;
-  } catch {
-    return null;
-  }
-}
+export const dynamic = "force-dynamic";
+export const revalidate = 30;
 
 export default async function HomePage() {
-  const stats = await getStats();
-  const remaining = stats?.remaining_credits ?? 0;
-  const claimed = stats?.total_claimed ?? 0;
-  const totalAttendees = stats?.total_attendees ?? 0;
+  const events = await listActiveEvents();
+
+  // Most common case: a single active event → take the user straight to it.
+  if (events.length === 1) {
+    redirect(`/e/${events[0].slug}`);
+  }
 
   return (
     <PublicPage>
       <div className="flex w-full flex-col items-center text-center">
-        <CursorLogo priority className="mb-8" />
+        <CursorLogo priority className="mb-7 2xl:mb-9 3xl:mb-10" />
 
-        {stats && (
-          <>
-            <div className="status-badge">
-              <span className="status-dot" />
-              {remaining > 0
-                ? `${remaining} credit${remaining === 1 ? "" : "s"} available`
-                : "All credits claimed"}
-            </div>
-            <p className="mt-3 text-[13px] text-ink-dim">
-              {claimed} of {totalAttendees} attendees have already claimed
-            </p>
-          </>
-        )}
-
-        <h1 className="mt-8 text-[2rem] font-semibold leading-tight tracking-tight text-ink sm:text-[2.25rem]">
+        <h1 className="mt-4 text-fluid-display font-semibold tracking-tight text-ink">
           Cursor Hyderabad
         </h1>
-        <p className="mt-2 max-w-sm text-[15px] leading-relaxed text-ink-muted">
-          Get your free credit from Cursor. Sign up in seconds.
+        <p className="mt-2.5 max-w-md text-fluid-lead text-ink-muted 2xl:mt-3">
+          Pick your event to claim your free Cursor credits.
         </p>
       </div>
 
-      <div className="mt-8 w-full panel p-6 sm:p-7">
-        <ClaimForm />
-      </div>
+      <div className="mt-8 w-full space-y-3 2xl:mt-10">
+        {events.length === 0 && (
+          <div className="panel p-6 text-center text-[14px] text-ink-muted">
+            No active events right now. Check back closer to the next meetup or
+            hackathon.
+          </div>
+        )}
 
-      <p className="mt-6 max-w-sm text-center text-[12px] leading-relaxed text-ink-dim">
-        Only participants registered for the event can obtain credits.
-        One credit per person.
-      </p>
+        {events.map((e) => (
+          <Link
+            key={e.id}
+            href={`/e/${e.slug}`}
+            className="panel group block p-5 text-left transition hover:border-ink/20 hover:bg-bg-subtle/60 2xl:p-6"
+          >
+            <div className="flex items-center justify-between gap-4">
+              <div className="min-w-0">
+                <div className="truncate text-[15px] font-semibold text-ink 2xl:text-[16px]">
+                  {e.name}
+                </div>
+                {(e.tagline || e.event_date) && (
+                  <div className="mt-0.5 truncate text-[12.5px] text-ink-muted 2xl:text-[13px]">
+                    {[e.event_date && formatDate(e.event_date), e.tagline]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </div>
+                )}
+              </div>
+              <span className="shrink-0 text-ink-dim transition group-hover:translate-x-0.5 group-hover:text-ink">
+                →
+              </span>
+            </div>
+          </Link>
+        ))}
+      </div>
     </PublicPage>
   );
+}
+
+function formatDate(iso: string) {
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return iso;
+    return d.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
+  } catch {
+    return iso;
+  }
 }

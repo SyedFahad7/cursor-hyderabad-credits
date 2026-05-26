@@ -12,7 +12,7 @@ type State =
   | { kind: "rate_limited"; retry: number }
   | { kind: "error"; message: string };
 
-export function ClaimForm() {
+export function ClaimForm({ eventSlug }: { eventSlug: string }) {
   const [email, setEmail] = useState("");
   const [state, setState] = useState<State>({ kind: "idle" });
 
@@ -25,7 +25,7 @@ export function ClaimForm() {
       const res = await fetch("/api/claim", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ email: trimmed }),
+        body: JSON.stringify({ email: trimmed, eventSlug }),
       });
       const json = (await res.json()) as {
         outcome: string;
@@ -136,9 +136,11 @@ export function ClaimForm() {
   const loading = state.kind === "loading";
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4">
+    <form onSubmit={onSubmit} className="space-y-4 2xl:space-y-5">
       <label className="block">
-        <span className="mb-2 block text-sm font-medium text-ink">Email</span>
+        <span className="mb-2 block text-sm font-medium text-ink 2xl:text-[15px]">
+          Email
+        </span>
         <input
           type="email"
           required
@@ -157,7 +159,7 @@ export function ClaimForm() {
           className="input"
           disabled={loading}
         />
-        <span className="mt-2 block text-[12px] text-ink-dim">
+        <span className="mt-2 block text-[12px] text-ink-dim 2xl:text-[13px]">
           Use the same email you signed up with on Luma.
         </span>
       </label>

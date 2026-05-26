@@ -16,9 +16,9 @@ export function LogoutButton() {
         router.replace("/admin/login");
         router.refresh();
       }}
-      className="ml-2 rounded-lg border border-line bg-bg-subtle px-3 py-1.5 text-sm text-ink-muted transition hover:text-ink"
+      className="shrink-0 rounded-lg border border-line bg-bg-subtle px-2.5 py-1.5 text-[12px] text-ink-muted transition hover:text-ink md:px-3 md:text-[13px]"
     >
-      {busy ? "Signing out…" : "Sign out"}
+      {busy ? "…" : "Sign out"}
     </button>
   );
 }

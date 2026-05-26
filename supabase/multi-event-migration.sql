@@ -1,15 +1,17 @@
 -- =============================================================================
--- Cursor Hyderabad — Multi-event Credit Claim Portal
--- Run this in the Supabase SQL editor to set up a fresh database.
--- If you already deployed the single-event version, run
--- `multi-event-migration.sql` instead — it preserves existing data.
--- Safe to re-run end-to-end on an empty DB.
+-- MULTI-EVENT MIGRATION
+-- Adds support for multiple events (meetups, hackathons, Cafe Cursor, ...).
+-- Safe to run on a live DB — preserves all existing rows by backfilling them
+-- into a default 'hyderabad-meetup-may-24' event.
+--
+-- Run this once in the Supabase SQL editor AFTER the original schema.sql.
+-- Idempotent (uses IF NOT EXISTS / ON CONFLICT throughout).
 -- =============================================================================
 
 create extension if not exists "pgcrypto";
 
 -- ============================================================================
--- events: one row per meetup / hackathon / Cafe Cursor
+-- 1. events: one row per meetup / hackathon / Cafe Cursor
 -- ============================================================================
 create table if not exists public.events (
   id              uuid primary key default gen_random_uuid(),
@@ -24,6 +26,7 @@ create table if not exists public.events (
   created_at      timestamptz not null default now()
 );
 
+-- slug must be lowercase-kebab (a-z, 0-9, hyphens; must start/end alphanumeric)
 do $$
 begin
   if not exists (
@@ -39,74 +42,88 @@ end $$;
 create index if not exists events_active_idx on public.events (active) where active = true;
 
 -- ============================================================================
--- attendees: approved participants per event
+-- 2. Seed a default event so existing attendees + credit_links have a home
 -- ============================================================================
-create table if not exists public.attendees (
-  id          uuid primary key default gen_random_uuid(),
-  event_id    uuid not null references public.events(id) on delete cascade,
-  email       text not null,
-  name        text,
-  claimed     boolean not null default false,
-  claimed_at  timestamptz,
-  credit_id   uuid,
-  created_at  timestamptz not null default now()
-);
-
--- Same email can exist in multiple events; uniqueness is per-event.
-create unique index if not exists attendees_event_email_lower_idx
-  on public.attendees (event_id, lower(email));
-create index if not exists attendees_event_id_idx on public.attendees (event_id);
+insert into public.events (slug, name, tagline, host, organizer, credit_amount, active)
+values (
+  'hyderabad-meetup-may-24',
+  'Cursor Hyderabad Meetup',
+  'Get your free credits from Cursor. Sign up in seconds.',
+  'Syed Fahad',
+  'Cursor Hyderabad, India',
+  '$15 in Cursor credits',
+  true
+)
+on conflict (slug) do nothing;
 
 -- ============================================================================
--- credit_links: pool of one-time Cursor credit URLs, scoped per event
+-- 3. Add event_id columns + backfill + enforce NOT NULL + FK
 -- ============================================================================
-create table if not exists public.credit_links (
-  id            uuid primary key default gen_random_uuid(),
-  event_id      uuid not null references public.events(id) on delete cascade,
-  cursor_url    text not null unique,
-  assigned_to   uuid references public.attendees(id) on delete set null,
-  assigned_at   timestamptz,
-  used          boolean not null default false,
-  created_at    timestamptz not null default now()
-);
+alter table public.attendees      add column if not exists event_id uuid;
+alter table public.credit_links   add column if not exists event_id uuid;
+alter table public.claim_attempts add column if not exists event_id uuid;
 
-create index if not exists credit_links_event_id_idx on public.credit_links (event_id);
-create index if not exists credit_links_unused_per_event_idx
-  on public.credit_links (event_id, used) where used = false;
+update public.attendees
+   set event_id = (select id from public.events where slug = 'hyderabad-meetup-may-24')
+ where event_id is null;
 
--- backfill FK on attendees → credit_links (added after both exist)
+update public.credit_links
+   set event_id = (select id from public.events where slug = 'hyderabad-meetup-may-24')
+ where event_id is null;
+
+alter table public.attendees    alter column event_id set not null;
+alter table public.credit_links alter column event_id set not null;
+
 do $$
 begin
   if not exists (
     select 1 from information_schema.table_constraints
-    where constraint_name = 'attendees_credit_id_fkey'
+    where constraint_name = 'attendees_event_id_fkey'
   ) then
     alter table public.attendees
-      add constraint attendees_credit_id_fkey
-      foreign key (credit_id) references public.credit_links(id) on delete set null;
+      add constraint attendees_event_id_fkey
+      foreign key (event_id) references public.events(id) on delete cascade;
+  end if;
+
+  if not exists (
+    select 1 from information_schema.table_constraints
+    where constraint_name = 'credit_links_event_id_fkey'
+  ) then
+    alter table public.credit_links
+      add constraint credit_links_event_id_fkey
+      foreign key (event_id) references public.events(id) on delete cascade;
+  end if;
+
+  if not exists (
+    select 1 from information_schema.table_constraints
+    where constraint_name = 'claim_attempts_event_id_fkey'
+  ) then
+    alter table public.claim_attempts
+      add constraint claim_attempts_event_id_fkey
+      foreign key (event_id) references public.events(id) on delete set null;
   end if;
 end $$;
 
 -- ============================================================================
--- claim_attempts: audit log for rate limiting + analytics
+-- 4. Replace global unique-on-email with per-event unique
+--    (same person CAN exist in multiple events — that's the whole point)
 -- ============================================================================
-create table if not exists public.claim_attempts (
-  id          bigserial primary key,
-  event_id    uuid references public.events(id) on delete set null,
-  email       text,
-  ip          text,
-  outcome     text not null,
-  user_agent  text,
-  created_at  timestamptz not null default now()
-);
+drop index if exists public.attendees_email_lower_idx;
+create unique index if not exists attendees_event_email_lower_idx
+  on public.attendees (event_id, lower(email));
 
-create index if not exists claim_attempts_created_at_idx on public.claim_attempts (created_at desc);
-create index if not exists claim_attempts_ip_idx         on public.claim_attempts (ip, created_at desc);
-create index if not exists claim_attempts_event_id_idx   on public.claim_attempts (event_id);
+create index if not exists attendees_event_id_idx on public.attendees (event_id);
+create index if not exists credit_links_event_id_idx on public.credit_links (event_id);
+create index if not exists credit_links_unused_per_event_idx
+  on public.credit_links (event_id, used) where used = false;
+create index if not exists claim_attempts_event_id_idx on public.claim_attempts (event_id);
 
 -- ============================================================================
--- claim_attendee_credit(p_email, p_event_slug): atomic, event-scoped claim
+-- 5. Replace claim RPC: now event-scoped via p_event_slug
 -- ============================================================================
+drop function if exists public.claim_attendee_credit(text);
+drop function if exists public.claim_attendee_credit(text, text);
+
 create or replace function public.claim_attendee_credit(
   p_email      text,
   p_event_slug text
@@ -127,6 +144,7 @@ declare
   v_attendee record;
   v_credit   record;
 begin
+  -- Resolve event
   select * into v_event
   from public.events
   where slug = lower(trim(p_event_slug))
@@ -137,6 +155,7 @@ begin
     return;
   end if;
 
+  -- Lock the attendee row (scoped to this event)
   select * into v_attendee
   from public.attendees
   where event_id = v_event.id
@@ -148,6 +167,7 @@ begin
     return;
   end if;
 
+  -- Already claimed → return original assignment
   if v_attendee.claimed = true then
     select cl.cursor_url into v_credit
     from public.credit_links cl
@@ -161,6 +181,7 @@ begin
     return;
   end if;
 
+  -- Pick next available credit from THIS event's pool
   select * into v_credit
   from public.credit_links
   where event_id = v_event.id
@@ -190,57 +211,10 @@ begin
 end;
 $$;
 
--- ============================================================================
--- revoke_credit(p_attendee_id): admin frees a credit (already event-scoped via attendee)
--- ============================================================================
-create or replace function public.revoke_credit(p_attendee_id uuid)
-returns boolean
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_credit_id uuid;
-begin
-  select credit_id into v_credit_id
-  from public.attendees
-  where id = p_attendee_id
-  for update;
-
-  if v_credit_id is null then
-    update public.attendees
-       set claimed = false, claimed_at = null
-     where id = p_attendee_id;
-    return true;
-  end if;
-
-  update public.credit_links
-     set used = false, assigned_to = null, assigned_at = null
-   where id = v_credit_id;
-
-  update public.attendees
-     set claimed = false, claimed_at = null, credit_id = null
-   where id = p_attendee_id;
-
-  return true;
-end;
-$$;
+-- revoke_credit stays the same (operates by attendee_id which is event-scoped already)
 
 -- ============================================================================
--- RLS
--- ============================================================================
-alter table public.events        enable row level security;
-alter table public.attendees     enable row level security;
-alter table public.credit_links  enable row level security;
-alter table public.claim_attempts enable row level security;
-
-drop policy if exists "deny all" on public.events;
-drop policy if exists "deny all" on public.attendees;
-drop policy if exists "deny all" on public.credit_links;
-drop policy if exists "deny all" on public.claim_attempts;
-
--- ============================================================================
--- Views for the admin dashboard
+-- 6. Per-event stats view + keep a global rollup
 -- ============================================================================
 drop view if exists public.event_stats;
 create view public.event_stats with (security_invoker = true) as
@@ -267,3 +241,9 @@ select
 
 revoke all on public.dashboard_stats from anon, authenticated;
 revoke all on public.event_stats     from anon, authenticated;
+
+-- ============================================================================
+-- 7. RLS on events: deny anon, service role bypasses
+-- ============================================================================
+alter table public.events enable row level security;
+drop policy if exists "deny all" on public.events;
