@@ -64,7 +64,7 @@ function renderHtml({ greetingName, creditUrl }: { greetingName: string; creditU
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Your Cursor Credits</title>
   </head>
-  <body style="margin:0;padding:0;background:#05060a;color:#f4f5f7;font-family:Inter,Segoe UI,Arial,sans-serif;">
+  <body style="margin:0;padding:0;background:#05060a;color:#f4f5f7;font-family:Outfit,'Segoe UI',Arial,sans-serif;">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#05060a;">
       <tr>
         <td align="center" style="padding:32px 16px;">

@@ -1,7 +1,6 @@
 import { ClaimForm } from "@/components/ClaimForm";
 import { CursorLogo } from "@/components/CursorLogo";
 import { PublicPage } from "@/components/PublicShell";
-import { publicEvent } from "@/lib/env";
 import { getSupabaseAdmin, type DashboardStats } from "@/lib/supabase";
 
 export const revalidate = 15;
@@ -46,10 +45,10 @@ export default async function HomePage() {
         )}
 
         <h1 className="mt-8 text-[2rem] font-semibold leading-tight tracking-tight text-ink sm:text-[2.25rem]">
-          {publicEvent.name}
+          Cursor Hyderabad
         </h1>
         <p className="mt-2 max-w-sm text-[15px] leading-relaxed text-ink-muted">
-          Get your free credit from Cursor IDE. Sign up in seconds.
+          Get your free credit from Cursor. Sign up in seconds.
         </p>
       </div>
 

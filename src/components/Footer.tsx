@@ -1,6 +1,8 @@
 import Image from "next/image";
 import { publicEvent } from "@/lib/env";
 
+const X_PROFILE = "https://x.com/fahad_developer";
+
 export function Footer() {
   return (
     <footer className="mt-auto w-full pt-10 text-center">
@@ -9,7 +11,26 @@ export function Footer() {
         <span className="font-medium text-ink">{publicEvent.organizer}</span>
       </p>
       <p className="mt-1 text-[12px] text-ink-dim">
-        Hosted by {publicEvent.host}
+        Hosted by{" "}
+        <a
+          href={X_PROFILE}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-ink-muted underline decoration-ink-dim/50 underline-offset-2 transition hover:text-ink hover:decoration-ink"
+        >
+          {publicEvent.host}
+        </a>
+      </p>
+      <p className="mt-2 text-[12px] text-ink-dim">
+        Contact / questions / ideas? Shoot a question to us{" "}
+        <a
+          href={X_PROFILE}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-ink-muted underline decoration-ink-dim/50 underline-offset-2 transition hover:text-ink hover:decoration-ink"
+        >
+          here
+        </a>
       </p>
       <div className="mt-6 flex items-center justify-center gap-2 text-[11px] text-ink-dim">
         <span>Powered by</span>
@@ -18,7 +39,7 @@ export function Footer() {
             src="/LOCKUP_HORIZONTAL_2D_DARK.png"
             alt="Cursor"
             fill
-            className="object-contain object-left dark:brightness-100 brightness-0"
+            className="object-contain object-left brightness-0 dark:brightness-100"
             sizes="72px"
           />
         </div>
