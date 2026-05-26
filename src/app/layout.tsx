@@ -19,7 +19,6 @@ export const metadata: Metadata = {
       "Approved attendees of the Cursor Hyderabad Meetup can claim their Cursor credits here.",
     type: "website",
   },
-  icons: { icon: "/favicon.svg" },
 };
 
 export const viewport: Viewport = {
