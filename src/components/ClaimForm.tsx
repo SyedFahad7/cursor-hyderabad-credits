@@ -27,7 +27,11 @@ export function ClaimForm() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ email: trimmed }),
       });
-      const json = (await res.json()) as { outcome: string; retryAfter?: number; message?: string };
+      const json = (await res.json()) as {
+        outcome: string;
+        retryAfter?: number;
+        message?: string;
+      };
 
       switch (json.outcome) {
         case "success":
@@ -46,7 +50,10 @@ export function ClaimForm() {
           setState({ kind: "rate_limited", retry: json.retryAfter ?? 60 });
           break;
         default:
-          setState({ kind: "error", message: json.message ?? "Something went wrong." });
+          setState({
+            kind: "error",
+            message: json.message ?? "Something went wrong.",
+          });
       }
     } catch (err) {
       setState({
@@ -80,36 +87,8 @@ export function ClaimForm() {
         body={
           <>
             <strong className="text-ink">{state.email}</strong> has already
-            been issued credits. We re-sent the original link to your inbox so
-            you can find it again.
+            been issued credits. We re-sent the original link to your inbox.
           </>
-        }
-      />
-    );
-  }
-
-  if (state.kind === "not_found") {
-    return (
-      <ResultPanel
-        tone="error"
-        title="This email isn't on the attendee list"
-        body={
-          <>
-            Only attendees registered for the meetup on Luma can claim credits.
-            Make sure you&apos;re using the same email you signed up with.
-          </>
-        }
-        action={
-          <button
-            type="button"
-            onClick={() => {
-              setEmail("");
-              setState({ kind: "idle" });
-            }}
-            className="btn-ghost mt-4 w-full"
-          >
-            Try a different email
-          </button>
         }
       />
     );
@@ -122,8 +101,8 @@ export function ClaimForm() {
         title="No credits remaining"
         body={
           <>
-            We&apos;ve run out of Cursor credits for this event. Please reach out to
-            the organizer if you believe this is a mistake.
+            We&apos;ve run out of Cursor credits for this event. Please reach
+            out to the organizer if you believe this is a mistake.
           </>
         }
       />
@@ -137,7 +116,7 @@ export function ClaimForm() {
         title="Slow down a moment"
         body={
           <>
-            Too many attempts from your network. Please try again in about{" "}
+            Too many attempts. Please try again in about{" "}
             <strong className="text-ink">{state.retry}s</strong>.
           </>
         }
@@ -148,25 +127,6 @@ export function ClaimForm() {
             className="btn-ghost mt-4 w-full"
           >
             OK
-          </button>
-        }
-      />
-    );
-  }
-
-  if (state.kind === "error") {
-    return (
-      <ResultPanel
-        tone="error"
-        title="Something went wrong"
-        body={<>{state.message}. Please try again in a moment.</>}
-        action={
-          <button
-            type="button"
-            onClick={() => setState({ kind: "idle" })}
-            className="btn-ghost mt-4 w-full"
-          >
-            Try again
           </button>
         }
       />
@@ -188,7 +148,12 @@ export function ClaimForm() {
           spellCheck={false}
           placeholder="you@example.com"
           value={email}
-          onChange={(e) => setEmail(e.target.value)}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (state.kind === "not_found" || state.kind === "error") {
+              setState({ kind: "idle" });
+            }
+          }}
           className="input"
           disabled={loading}
         />
@@ -197,13 +162,39 @@ export function ClaimForm() {
         </span>
       </label>
 
+      {state.kind === "not_found" && (
+        <div className="rounded-xl border border-rose-500/25 bg-rose-500/[0.06] p-4 text-left">
+          <p className="text-[14px] leading-relaxed text-rose-700 dark:text-rose-300/90">
+            This email is not registered for the event. Only approved
+            participants can obtain credits. Think it&apos;s a mistake? Contact
+            the event organizer.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              setEmail("");
+              setState({ kind: "idle" });
+            }}
+            className="mt-3 text-[13px] text-ink underline underline-offset-2 transition hover:text-ink-muted"
+          >
+            Try with another email
+          </button>
+        </div>
+      )}
+
+      {state.kind === "error" && (
+        <div className="rounded-xl border border-rose-500/25 bg-rose-500/[0.06] p-4 text-[14px] text-rose-700 dark:text-rose-300/90">
+          {state.message}. Please try again.
+        </div>
+      )}
+
       <button type="submit" disabled={loading || !email} className="btn-primary">
         {loading ? (
           <>
             <Spinner /> Sending…
           </>
         ) : (
-          "Email me my credit"
+          "Get my credit"
         )}
       </button>
     </form>
@@ -227,14 +218,14 @@ function ResultPanel({
     error: "border-rose-500/30 bg-rose-500/[0.06]",
   };
   const dot: Record<typeof tone, string> = {
-    success: "bg-emerald-400",
-    warn: "bg-amber-300",
-    error: "bg-rose-400",
+    success: "bg-emerald-500",
+    warn: "bg-amber-400",
+    error: "bg-rose-500",
   };
   return (
     <div className={`rounded-xl border p-5 ${toneStyles[tone]}`}>
       <div className="flex items-center gap-2">
-        <span className={`h-2.5 w-2.5 rounded-full ${dot[tone]}`} />
+        <span className={`h-2 w-2 rounded-full ${dot[tone]}`} />
         <h3 className="text-[15px] font-semibold text-ink">{title}</h3>
       </div>
       <p className="mt-2 text-[14px] leading-relaxed text-ink-muted">{body}</p>
@@ -251,7 +242,14 @@ function Spinner() {
       fill="none"
       aria-hidden
     >
-      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity="0.25" strokeWidth="3" />
+      <circle
+        cx="12"
+        cy="12"
+        r="9"
+        stroke="currentColor"
+        strokeOpacity="0.25"
+        strokeWidth="3"
+      />
       <path
         d="M21 12a9 9 0 0 1-9 9"
         stroke="currentColor"

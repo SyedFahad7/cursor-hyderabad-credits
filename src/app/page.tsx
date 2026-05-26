@@ -1,6 +1,6 @@
 import { ClaimForm } from "@/components/ClaimForm";
-import { BrandMark } from "@/components/BrandMark";
-import { Footer } from "@/components/Footer";
+import { CursorLogo } from "@/components/CursorLogo";
+import { PublicPage } from "@/components/PublicShell";
 import { publicEvent } from "@/lib/env";
 import { getSupabaseAdmin, type DashboardStats } from "@/lib/supabase";
 
@@ -27,50 +27,40 @@ export default async function HomePage() {
   const totalAttendees = stats?.total_attendees ?? 0;
 
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-xl flex-col items-center px-5 pt-20 sm:pt-28">
-      <div className="flex flex-col items-center text-center">
-        <div className="animate-float">
-          <BrandMark size={56} />
-        </div>
+    <PublicPage>
+      <div className="flex w-full flex-col items-center text-center">
+        <CursorLogo priority className="mb-8" />
 
         {stats && (
-          <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-line bg-bg-panel/70 px-3 py-1 text-xs text-ink-muted">
-            <span
-              className={`h-2 w-2 rounded-full ${
-                remaining > 0 ? "bg-emerald-400" : "bg-rose-400"
-              }`}
-            />
-            {remaining > 0
-              ? `${remaining} credit${remaining === 1 ? "" : "s"} available`
-              : "All credits claimed"}
-          </div>
+          <>
+            <div className="status-badge">
+              <span className="status-dot" />
+              {remaining > 0
+                ? `${remaining} credit${remaining === 1 ? "" : "s"} available`
+                : "All credits claimed"}
+            </div>
+            <p className="mt-3 text-[13px] text-ink-dim">
+              {claimed} of {totalAttendees} attendees have already claimed
+            </p>
+          </>
         )}
 
-        {stats && (
-          <p className="mt-3 text-[13px] text-ink-dim">
-            {claimed} of {totalAttendees} attendees have already claimed
-          </p>
-        )}
-
-        <h1 className="mt-6 text-4xl font-semibold tracking-tight sm:text-5xl">
-          <span className="text-gradient-hyd">{publicEvent.name}</span>
+        <h1 className="mt-8 text-[2rem] font-semibold leading-tight tracking-tight text-ink sm:text-[2.25rem]">
+          {publicEvent.name}
         </h1>
-        <p className="mt-3 max-w-md text-[15px] text-ink-muted">
-          Claim your free Cursor credits below.{" "}
-          <span className="text-ink">Takes a few seconds.</span>
+        <p className="mt-2 max-w-sm text-[15px] leading-relaxed text-ink-muted">
+          Get your free credit from Cursor IDE. Sign up in seconds.
         </p>
       </div>
 
-      <div className="mt-10 w-full panel p-6 sm:p-8">
+      <div className="mt-8 w-full panel p-6 sm:p-7">
         <ClaimForm />
       </div>
 
-      <p className="mt-6 max-w-md text-center text-[12px] leading-relaxed text-ink-dim">
-        Only attendees registered for the meetup on Luma can claim credits.
+      <p className="mt-6 max-w-sm text-center text-[12px] leading-relaxed text-ink-dim">
+        Only participants registered for the event can obtain credits.
         One credit per person.
       </p>
-
-      <Footer />
-    </main>
+    </PublicPage>
   );
 }

@@ -3,13 +3,43 @@
 @tailwind utilities;
 
 :root {
+  color-scheme: light;
+  --color-bg: #f5f5f3;
+  --color-bg-panel: #ffffff;
+  --color-bg-subtle: #ececea;
+  --color-line: #e0e0dc;
+  --color-ink: #171717;
+  --color-ink-muted: #6b6b6b;
+  --color-ink-dim: #9a9a9a;
+  --color-grid: rgba(0, 0, 0, 0.06);
+  --color-badge: #ecfdf5;
+  --color-badge-text: #059669;
+  --color-badge-dot: #10b981;
+}
+
+.dark {
   color-scheme: dark;
+  --color-bg: #0a0a0a;
+  --color-bg-panel: #141414;
+  --color-bg-subtle: #1a1a1a;
+  --color-line: #2a2a2a;
+  --color-ink: #ededed;
+  --color-ink-muted: #a1a1a1;
+  --color-ink-dim: #737373;
+  --color-grid: rgba(255, 255, 255, 0.04);
+  --color-badge: rgba(16, 185, 129, 0.08);
+  --color-badge-text: #34d399;
+  --color-badge-dot: #10b981;
+}
+
+html {
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 html,
 body {
-  background-color: #05060a;
-  color: #f4f5f7;
+  background-color: var(--color-bg);
+  color: var(--color-ink);
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -17,60 +47,50 @@ body {
 
 @layer components {
   .panel {
-    @apply rounded-2xl border border-line bg-bg-panel/90 shadow-panel backdrop-blur;
+    @apply rounded-2xl border border-line bg-bg-panel shadow-sm transition-colors duration-300;
   }
   .input {
     @apply w-full rounded-xl border border-line bg-bg-subtle px-4 py-3 text-[15px] text-ink
-      placeholder:text-ink-dim outline-none transition
-      focus:border-accent/60 focus:shadow-[0_0_0_3px_rgba(124,92,255,0.18)];
+      placeholder:text-ink-dim outline-none transition-all duration-200
+      focus:border-ink-dim;
   }
   .btn-primary {
-    @apply inline-flex w-full items-center justify-center gap-2 rounded-xl bg-ink px-4 py-3
-      text-[15px] font-medium text-bg transition hover:bg-white disabled:opacity-50 disabled:cursor-not-allowed;
+    @apply inline-flex w-full items-center justify-center gap-2 rounded-xl bg-ink px-4 py-3.5
+      text-[15px] font-medium text-bg transition-all duration-200
+      hover:opacity-90 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-50;
   }
   .btn-ghost {
     @apply inline-flex items-center justify-center gap-2 rounded-xl border border-line bg-bg-subtle px-4 py-2
-      text-sm text-ink-muted transition hover:bg-line hover:text-ink;
+      text-sm text-ink-muted transition-colors duration-200 hover:bg-line hover:text-ink;
   }
   .chip {
     @apply inline-flex items-center gap-2 rounded-full border border-line bg-bg-subtle px-3 py-1 text-xs text-ink-muted;
   }
+  .status-badge {
+    @apply inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium transition-colors duration-300;
+    background: var(--color-badge);
+    color: var(--color-badge-text);
+  }
+  .status-dot {
+    @apply h-1.5 w-1.5 rounded-full;
+    background: var(--color-badge-dot);
+  }
 }
 
-/* Subtle grid background helper */
 .grid-bg {
-  background-image: linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
-  background-size: 32px 32px;
+  background-image:
+    linear-gradient(var(--color-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-grid) 1px, transparent 1px);
+  background-size: 40px 40px;
   background-position: -1px -1px;
-  mask-image: radial-gradient(ellipse 70% 60% at 50% 30%, black 40%, transparent 100%);
+  mask-image: radial-gradient(ellipse 80% 50% at 50% 0%, black 20%, transparent 70%);
 }
 
-/* Animated gradient text used in headings */
-.text-gradient-hyd {
-  background: linear-gradient(90deg, #f4f5f7 0%, #c9b8ff 35%, #ffb38a 70%, #f4f5f7 100%);
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: shimmer 6s linear infinite;
-}
-
-@keyframes shimmer {
-  0% {
-    background-position: 0% center;
-  }
-  100% {
-    background-position: 200% center;
-  }
-}
-
-/* nicer scrollbars on the admin tables */
 .scroll-thin::-webkit-scrollbar {
   height: 8px;
   width: 8px;
 }
 .scroll-thin::-webkit-scrollbar-thumb {
-  background: #1e2230;
+  background: var(--color-line);
   border-radius: 8px;
 }
