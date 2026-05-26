@@ -1,5 +1,3 @@
-import { promises as fs } from "fs";
-import path from "path";
 import { Resend } from "resend";
 import { getServerEnv } from "./env";
 import type { Event } from "./supabase";
@@ -36,60 +34,28 @@ function getResend(): Resend {
   return cached;
 }
 
-// --- LOGO LOADING ----------------------------------------------------------
-// Read the Cursor cube once, keep as Buffer in module memory. We try a few
-// candidate paths because Vercel's serverless bundling sometimes places the
-// /public folder at .next/server/app/<route>/public depending on the route.
-let logoBufferPromise: Promise<Buffer | null> | null = null;
-function loadLogoBuffer(): Promise<Buffer | null> {
-  if (logoBufferPromise) return logoBufferPromise;
-  logoBufferPromise = (async () => {
-    const candidates = [
-      path.join(process.cwd(), "public", "CUBE_2D_DARK.png"),
-      path.join(process.cwd(), ".next", "server", "public", "CUBE_2D_DARK.png"),
-      // Fallback: walk up from this file's location (works inside bundled fns)
-      path.resolve(__dirname, "..", "..", "..", "public", "CUBE_2D_DARK.png"),
-    ];
-    for (const p of candidates) {
-      try {
-        const buf = await fs.readFile(p);
-        if (buf?.length) return buf;
-      } catch {
-        // try next
-      }
-    }
-    // Last resort: fetch from the public URL (Resend will receive the URL
-    // and embed it itself, but we resolve here so we still get a Buffer).
-    const publicUrl = getPublicAppUrl();
-    if (publicUrl) {
-      try {
-        const res = await fetch(`${publicUrl}/CUBE_2D_DARK.png`, {
-          cache: "no-store",
-        });
-        if (res.ok) {
-          const ab = await res.arrayBuffer();
-          return Buffer.from(ab);
-        }
-      } catch (err) {
-        console.error("[email] logo url fetch failed", err);
-      }
-    }
-    console.error("[email] could not load logo from any source");
-    return null;
-  })();
-  return logoBufferPromise;
-}
+// --- LOGO URL RESOLUTION ---------------------------------------------------
+// Resolve a publicly reachable URL for the Cursor cube logo. Priority:
+//   1. EMAIL_LOGO_URL  — explicit override (e.g. a CDN/freeimage.host link)
+//   2. NEXT_PUBLIC_APP_URL + /CUBE_2D_DARK.png  — your own Vercel domain
+//      (preferred: same-origin as sender = better Gmail trust signals)
+//   3. VERCEL_URL + /CUBE_2D_DARK.png  — auto-set by Vercel
+//   4. null  -> render text "Cursor" wordmark fallback
+// We deliberately do NOT use CID attachments anymore — Gmail shows them
+// as a downloadable attachment AND often fails to render them inline.
+function resolveLogoUrl(): string | null {
+  const override = process.env.EMAIL_LOGO_URL?.trim();
+  if (override && /^https?:\/\//i.test(override)) return override;
 
-function getPublicAppUrl(): string | null {
   const explicit = process.env.NEXT_PUBLIC_APP_URL?.trim();
   if (explicit && !/^https?:\/\/(localhost|127\.)/i.test(explicit)) {
-    return explicit.replace(/\/$/, "");
+    return `${explicit.replace(/\/$/, "")}/CUBE_2D_DARK.png`;
   }
-  if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}/CUBE_2D_DARK.png`;
+  }
   return null;
 }
-
-const LOGO_CID = "cursor-cube-logo";
 
 type SendCreditArgs = {
   to: string;
@@ -108,22 +74,10 @@ export async function sendCreditEmail({
   const subject = `Free Cursor Credits from ${event.name} | Thank you for Attending`;
   const greetingName = name?.trim() ? name.trim().split(" ")[0] : "there";
 
-  const logoBuf = await loadLogoBuffer();
-  const hasLogo = !!logoBuf;
+  const logoUrl = resolveLogoUrl();
 
-  const html = renderHtml({ greetingName, creditUrl, event, hasLogo });
+  const html = renderHtml({ greetingName, creditUrl, event, logoUrl });
   const text = renderText({ greetingName, creditUrl, event });
-
-  const attachments = hasLogo
-    ? [
-        {
-          filename: "cursor.png",
-          content: logoBuf!,
-          contentId: LOGO_CID,
-          contentType: "image/png",
-        },
-      ]
-    : undefined;
 
   const { data, error } = await getResend().emails.send({
     from: env.RESEND_FROM_EMAIL,
@@ -132,7 +86,6 @@ export async function sendCreditEmail({
     html,
     text,
     replyTo: env.RESEND_REPLY_TO || undefined,
-    attachments,
     headers: {
       "X-Entity-Ref-ID": `chyd-${Date.now()}`,
     },
@@ -172,11 +125,11 @@ function renderText({
     .join("\n");
 }
 
-function renderLogoBlock(hasLogo: boolean): string {
-  if (hasLogo) {
-    return `<img src="cid:${LOGO_CID}" alt="Cursor" width="44" height="44" style="display:block;margin:0 auto;width:44px;height:44px;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;" />`;
+function renderLogoBlock(logoUrl: string | null): string {
+  if (logoUrl) {
+    return `<img src="${escapeAttr(logoUrl)}" alt="Cursor" width="44" height="44" style="display:block;margin:0 auto;width:44px;height:44px;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;" />`;
   }
-  // Wordmark fallback — only shown if we somehow couldn't read the PNG file
+  // Wordmark fallback when no public URL is configured
   return `<div style="font-family:${FONT_STACK};font-weight:700;font-size:22px;line-height:1;letter-spacing:-0.025em;color:${COLORS.textPrimary};text-align:center;mso-line-height-rule:exactly;">Cursor</div>`;
 }
 
@@ -184,12 +137,12 @@ function renderHtml({
   greetingName,
   creditUrl,
   event,
-  hasLogo,
+  logoUrl,
 }: {
   greetingName: string;
   creditUrl: string;
   event: SendCreditArgs["event"];
-  hasLogo: boolean;
+  logoUrl: string | null;
 }) {
   const dateLine = event.event_date
     ? `${escapeHtml(event.name)} &middot; ${escapeHtml(formatDate(event.event_date))}`
@@ -275,7 +228,7 @@ function renderHtml({
             <!-- LOGO + TITLE -->
             <tr>
               <td align="center" class="bg-card pad-x" bgcolor="${COLORS.cardBg}" style="background-color:${COLORS.cardBg};padding:36px 36px 8px 36px;text-align:center;">
-                ${renderLogoBlock(hasLogo)}
+                ${renderLogoBlock(logoUrl)}
                 <div class="t-primary" style="font-family:${FONT_STACK};font-weight:600;font-size:22px;line-height:1.3;margin:22px 0 6px 0;color:${COLORS.textPrimary};letter-spacing:-0.01em;mso-line-height-rule:exactly;">
                   Your Cursor credits are ready
                 </div>
