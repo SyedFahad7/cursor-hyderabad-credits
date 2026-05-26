@@ -21,8 +21,8 @@ export function PublicPage({
 }) {
   return (
     <PublicShell>
-      <main className="mx-auto flex min-h-screen w-full max-w-[420px] flex-col items-center px-5 pb-12 pt-16 sm:pt-20">
-        {children}
+      <main className="public-main mx-auto flex w-full max-w-[420px] flex-col px-5 pb-8 pt-16 sm:pt-20 md:max-w-[440px] md:px-6 md:pt-20 2xl:max-w-[460px] 2xl:pb-10">
+        <div className="public-main-content">{children}</div>
         {footer && <Footer />}
       </main>
     </PublicShell>

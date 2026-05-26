@@ -5,7 +5,7 @@ const X_PROFILE = "https://x.com/fahad_developer";
 
 export function Footer() {
   return (
-    <footer className="mt-auto w-full pt-10 text-center">
+    <footer className="mt-8 w-full shrink-0 pt-4 text-center md:mt-10 2xl:mt-6">
       <p className="text-[13px] text-ink-muted">
         Presented by{" "}
         <span className="font-medium text-ink">{publicEvent.organizer}</span>
