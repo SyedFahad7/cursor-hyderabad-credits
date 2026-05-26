@@ -198,10 +198,18 @@ drop policy if exists "deny all" on public.claim_attempts;
 
 -- ============================================================================
 -- Helpful views for the admin dashboard
+-- WITH (security_invoker = true) makes the view respect the caller's RLS
+-- (silences Supabase's "Security Definer View" advisor warning).
+-- The server-side service-role client bypasses RLS, so the app keeps working;
+-- anon/authenticated callers cannot read this view by design.
 -- ============================================================================
-create or replace view public.dashboard_stats as
+drop view if exists public.dashboard_stats;
+create view public.dashboard_stats
+with (security_invoker = true) as
 select
   (select count(*) from public.attendees)                                as total_attendees,
   (select count(*) from public.attendees where claimed = true)           as total_claimed,
   (select count(*) from public.credit_links)                             as total_credits,
   (select count(*) from public.credit_links where used = false)          as remaining_credits;
+
+revoke all on public.dashboard_stats from anon, authenticated;
