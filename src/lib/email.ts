@@ -34,29 +34,6 @@ function getResend(): Resend {
   return cached;
 }
 
-// --- LOGO URL RESOLUTION ---------------------------------------------------
-// Resolve a publicly reachable URL for the Cursor cube logo. Priority:
-//   1. EMAIL_LOGO_URL  — explicit override (e.g. a CDN/freeimage.host link)
-//   2. NEXT_PUBLIC_APP_URL + /CUBE_2D_DARK.png  — your own Vercel domain
-//      (preferred: same-origin as sender = better Gmail trust signals)
-//   3. VERCEL_URL + /CUBE_2D_DARK.png  — auto-set by Vercel
-//   4. null  -> render text "Cursor" wordmark fallback
-// We deliberately do NOT use CID attachments anymore — Gmail shows them
-// as a downloadable attachment AND often fails to render them inline.
-function resolveLogoUrl(): string | null {
-  const override = process.env.EMAIL_LOGO_URL?.trim();
-  if (override && /^https?:\/\//i.test(override)) return override;
-
-  const explicit = process.env.NEXT_PUBLIC_APP_URL?.trim();
-  if (explicit && !/^https?:\/\/(localhost|127\.)/i.test(explicit)) {
-    return `${explicit.replace(/\/$/, "")}/CUBE_2D_DARK.png`;
-  }
-  if (process.env.VERCEL_URL) {
-    return `https://${process.env.VERCEL_URL}/CUBE_2D_DARK.png`;
-  }
-  return null;
-}
-
 type SendCreditArgs = {
   to: string;
   name?: string | null;
@@ -74,9 +51,7 @@ export async function sendCreditEmail({
   const subject = `Free Cursor Credits from ${event.name} | Thank you for Attending`;
   const greetingName = name?.trim() ? name.trim().split(" ")[0] : "there";
 
-  const logoUrl = resolveLogoUrl();
-
-  const html = renderHtml({ greetingName, creditUrl, event, logoUrl });
+  const html = renderHtml({ greetingName, creditUrl, event });
   const text = renderText({ greetingName, creditUrl, event });
 
   const { data, error } = await getResend().emails.send({
@@ -125,24 +100,14 @@ function renderText({
     .join("\n");
 }
 
-function renderLogoBlock(logoUrl: string | null): string {
-  if (logoUrl) {
-    return `<img src="${escapeAttr(logoUrl)}" alt="Cursor" width="44" height="44" style="display:block;margin:0 auto;width:44px;height:44px;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;" />`;
-  }
-  // Wordmark fallback when no public URL is configured
-  return `<div style="font-family:${FONT_STACK};font-weight:700;font-size:22px;line-height:1;letter-spacing:-0.025em;color:${COLORS.textPrimary};text-align:center;mso-line-height-rule:exactly;">Cursor</div>`;
-}
-
 function renderHtml({
   greetingName,
   creditUrl,
   event,
-  logoUrl,
 }: {
   greetingName: string;
   creditUrl: string;
   event: SendCreditArgs["event"];
-  logoUrl: string | null;
 }) {
   const dateLine = event.event_date
     ? `${escapeHtml(event.name)} &middot; ${escapeHtml(formatDate(event.event_date))}`
@@ -225,11 +190,10 @@ function renderHtml({
 
           <table role="presentation" class="card bg-card" width="560" cellpadding="0" cellspacing="0" border="0" bgcolor="${COLORS.cardBg}" style="max-width:560px;width:100%;background-color:${COLORS.cardBg};border:1px solid ${COLORS.divider};border-radius:18px;">
 
-            <!-- LOGO + TITLE -->
+            <!-- TITLE -->
             <tr>
-              <td align="center" class="bg-card pad-x" bgcolor="${COLORS.cardBg}" style="background-color:${COLORS.cardBg};padding:36px 36px 8px 36px;text-align:center;">
-                ${renderLogoBlock(logoUrl)}
-                <div class="t-primary" style="font-family:${FONT_STACK};font-weight:600;font-size:22px;line-height:1.3;margin:22px 0 6px 0;color:${COLORS.textPrimary};letter-spacing:-0.01em;mso-line-height-rule:exactly;">
+              <td align="center" class="bg-card pad-x" bgcolor="${COLORS.cardBg}" style="background-color:${COLORS.cardBg};padding:40px 36px 8px 36px;text-align:center;">
+                <div class="t-primary" style="font-family:${FONT_STACK};font-weight:600;font-size:24px;line-height:1.3;margin:0 0 8px 0;color:${COLORS.textPrimary};letter-spacing:-0.01em;mso-line-height-rule:exactly;">
                   Your Cursor credits are ready
                 </div>
                 <div class="t-muted" style="font-family:${FONT_STACK};margin:0;color:${COLORS.textMuted};font-size:13.5px;letter-spacing:0.01em;mso-line-height-rule:exactly;">
