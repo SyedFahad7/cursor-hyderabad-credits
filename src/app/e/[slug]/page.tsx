@@ -31,8 +31,6 @@ export default async function EventClaimPage({ params }: { params: Params }) {
 
   const stats = await getEventStats(slug);
   const remaining = stats?.remaining_credits ?? 0;
-  const claimed = stats?.total_claimed ?? 0;
-  const totalAttendees = stats?.total_attendees ?? 0;
 
   return (
     <PublicPage>
@@ -40,17 +38,12 @@ export default async function EventClaimPage({ params }: { params: Params }) {
         <CursorLogo priority className="mb-7 2xl:mb-9 3xl:mb-10" />
 
         {stats && (
-          <>
-            <div className="status-badge">
-              <span className="status-dot" />
-              {remaining > 0
-                ? `${remaining} credit${remaining === 1 ? "" : "s"} available`
-                : "All credits claimed"}
-            </div>
-            <p className="mt-3 text-[13px] text-ink-dim 2xl:mt-3.5 2xl:text-[13.5px] 3xl:text-[14px]">
-              {claimed} of {totalAttendees} attendees have already claimed
-            </p>
-          </>
+          <div className="status-badge">
+            <span className="status-dot" />
+            {remaining > 0
+              ? `${remaining} credit${remaining === 1 ? "" : "s"} available`
+              : "All credits claimed"}
+          </div>
         )}
 
         <h1 className="mt-7 text-fluid-display font-semibold tracking-tight text-ink 2xl:mt-9">
