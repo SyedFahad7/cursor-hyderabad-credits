@@ -27,10 +27,37 @@ export async function generateMetadata({
 export default async function EventClaimPage({ params }: { params: Params }) {
   const { slug } = await params;
   const event = await getEventBySlug(slug);
-  if (!event || !event.active) notFound();
+  if (!event) notFound();
 
   const stats = await getEventStats(slug);
   const remaining = stats?.remaining_credits ?? 0;
+
+  const status: "available" | "sold_out" | "closed" = !event.active
+    ? "closed"
+    : remaining === 0
+      ? "sold_out"
+      : "available";
+
+  const badgeText =
+    status === "available"
+      ? "Credits available"
+      : status === "sold_out"
+        ? "All credits claimed"
+        : "Claims closed";
+
+  const badgeClass =
+    status === "available"
+      ? "status-badge"
+      : status === "sold_out"
+        ? "status-badge status-badge--warn"
+        : "status-badge status-badge--off";
+
+  const dotClass =
+    status === "available"
+      ? "status-dot"
+      : status === "sold_out"
+        ? "status-dot status-dot--warn"
+        : "status-dot status-dot--off";
 
   return (
     <PublicPage>
@@ -38,11 +65,9 @@ export default async function EventClaimPage({ params }: { params: Params }) {
         <CursorLogo priority className="mb-7 2xl:mb-9 3xl:mb-10" />
 
         {stats && (
-          <div className="status-badge">
-            <span className="status-dot" />
-            {remaining > 0
-              ? `${remaining} credit${remaining === 1 ? "" : "s"} available`
-              : "All credits claimed"}
+          <div className={badgeClass}>
+            <span className={dotClass} />
+            {badgeText}
           </div>
         )}
 
@@ -55,7 +80,20 @@ export default async function EventClaimPage({ params }: { params: Params }) {
       </div>
 
       <div className="mt-8 w-full panel p-6 sm:p-7 2xl:mt-10 2xl:p-8 3xl:p-9">
-        <ClaimForm eventSlug={event.slug} />
+        {status === "closed" ? (
+          <div className="text-center">
+            <h3 className="text-[16px] font-semibold text-ink 2xl:text-[17px]">
+              This event isn&apos;t accepting claims right now
+            </h3>
+            <p className="mt-2 text-[14px] leading-relaxed text-ink-muted 2xl:text-[15px]">
+              The organizer has closed credit claims for{" "}
+              <span className="text-ink">{event.name}</span>. If you think this
+              is a mistake, please reach out to the host.
+            </p>
+          </div>
+        ) : (
+          <ClaimForm eventSlug={event.slug} />
+        )}
       </div>
     </PublicPage>
   );
