@@ -1,4 +1,5 @@
 import { Resend } from "resend";
+import nodemailer, { type Transporter } from "nodemailer";
 import { getServerEnv } from "./env";
 import type { Event } from "./supabase";
 
@@ -27,11 +28,81 @@ const COLORS = {
   ctaText: "#000000",
 } as const;
 
-let cached: Resend | null = null;
+// --- TRANSPORT SELECTION ---------------------------------------------------
+// We support two transports. Gmail SMTP wins when configured, because it's
+// what the user falls back to when they don't have a verified Resend domain.
+//
+//   1. Gmail SMTP: GMAIL_USER + GMAIL_APP_PASSWORD (free, 500/day, no domain)
+//   2. Resend:    RESEND_API_KEY (requires a verified domain in resend.com)
+//
+type Transport = "gmail" | "resend" | "none";
+function detectTransport(): Transport {
+  const env = getServerEnv();
+  if (env.GMAIL_USER && env.GMAIL_APP_PASSWORD) return "gmail";
+  if (env.RESEND_API_KEY) return "resend";
+  return "none";
+}
+
+let cachedResend: Resend | null = null;
 function getResend(): Resend {
-  if (cached) return cached;
-  cached = new Resend(getServerEnv().RESEND_API_KEY);
-  return cached;
+  if (cachedResend) return cachedResend;
+  const env = getServerEnv();
+  if (!env.RESEND_API_KEY) throw new Error("RESEND_API_KEY not set");
+  cachedResend = new Resend(env.RESEND_API_KEY);
+  return cachedResend;
+}
+
+let cachedSmtp: Transporter | null = null;
+function getSmtpTransporter(): Transporter {
+  if (cachedSmtp) return cachedSmtp;
+  const env = getServerEnv();
+  if (!env.GMAIL_USER || !env.GMAIL_APP_PASSWORD) {
+    throw new Error("GMAIL_USER / GMAIL_APP_PASSWORD not set");
+  }
+  cachedSmtp = nodemailer.createTransport({
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true,
+    auth: {
+      user: env.GMAIL_USER,
+      pass: env.GMAIL_APP_PASSWORD,
+    },
+  });
+  return cachedSmtp;
+}
+
+/** Build a `From:` value that uses the display name from RESEND_FROM_EMAIL
+ *  but the underlying address from GMAIL_USER (Gmail won't accept any other
+ *  address — it will silently rewrite it to the authenticated user). */
+function buildGmailFromHeader(): string {
+  const env = getServerEnv();
+  const fromConfigured = env.RESEND_FROM_EMAIL;
+  const gmailUser = env.GMAIL_USER!;
+  // Try to extract a display name from "Name <addr>" syntax
+  const match = /^\s*"?([^"<]+?)"?\s*<[^>]+>\s*$/.exec(fromConfigured);
+  const displayName = match?.[1]?.trim();
+  return displayName ? `"${displayName}" <${gmailUser}>` : gmailUser;
+}
+
+// --- LOGO URL RESOLUTION ---------------------------------------------------
+// Resolves a publicly reachable URL for the Cursor cube image used in the
+// email header. Priority:
+//   1. EMAIL_LOGO_URL  (explicit override, e.g. a CDN link)
+//   2. NEXT_PUBLIC_APP_URL + /CUBE_2D_DARK.png
+//   3. VERCEL_URL + /CUBE_2D_DARK.png  (Vercel auto-injects this)
+//   4. null  -> render a simple text "Cursor" wordmark instead
+function resolveLogoUrl(): string | null {
+  const override = process.env.EMAIL_LOGO_URL?.trim();
+  if (override && /^https?:\/\//i.test(override)) return override;
+
+  const explicit = process.env.NEXT_PUBLIC_APP_URL?.trim();
+  if (explicit && !/^https?:\/\/(localhost|127\.)/i.test(explicit)) {
+    return `${explicit.replace(/\/$/, "")}/CUBE_2D_DARK.png`;
+  }
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}/CUBE_2D_DARK.png`;
+  }
+  return null;
 }
 
 type SendCreditArgs = {
@@ -51,23 +122,52 @@ export async function sendCreditEmail({
   const subject = `Free Cursor Credits from ${event.name} | Thank you for Attending`;
   const greetingName = name?.trim() ? name.trim().split(" ")[0] : "there";
 
-  const html = renderHtml({ greetingName, creditUrl, event });
+  const html = renderHtml({
+    greetingName,
+    creditUrl,
+    event,
+    logoUrl: resolveLogoUrl(),
+  });
   const text = renderText({ greetingName, creditUrl, event });
 
-  const { data, error } = await getResend().emails.send({
-    from: env.RESEND_FROM_EMAIL,
-    to,
-    subject,
-    html,
-    text,
-    replyTo: env.RESEND_REPLY_TO || undefined,
-    headers: {
-      "X-Entity-Ref-ID": `chyd-${Date.now()}`,
-    },
-  });
+  const transport = detectTransport();
 
-  if (error) throw new Error(`Resend error: ${error.message ?? "unknown"}`);
-  return data?.id ?? null;
+  // ----- Gmail SMTP via Nodemailer (preferred when configured) -------------
+  if (transport === "gmail") {
+    const info = await getSmtpTransporter().sendMail({
+      from: buildGmailFromHeader(),
+      to,
+      subject,
+      html,
+      text,
+      replyTo: env.RESEND_REPLY_TO || env.GMAIL_USER || undefined,
+      headers: {
+        "X-Entity-Ref-ID": `chyd-${Date.now()}`,
+      },
+    });
+    return info.messageId ?? null;
+  }
+
+  // ----- Resend fallback ---------------------------------------------------
+  if (transport === "resend") {
+    const { data, error } = await getResend().emails.send({
+      from: env.RESEND_FROM_EMAIL,
+      to,
+      subject,
+      html,
+      text,
+      replyTo: env.RESEND_REPLY_TO || undefined,
+      headers: {
+        "X-Entity-Ref-ID": `chyd-${Date.now()}`,
+      },
+    });
+    if (error) throw new Error(`Resend error: ${error.message ?? "unknown"}`);
+    return data?.id ?? null;
+  }
+
+  throw new Error(
+    "No email transport configured. Set GMAIL_USER + GMAIL_APP_PASSWORD or RESEND_API_KEY.",
+  );
 }
 
 function renderText({
@@ -104,10 +204,12 @@ function renderHtml({
   greetingName,
   creditUrl,
   event,
+  logoUrl,
 }: {
   greetingName: string;
   creditUrl: string;
   event: SendCreditArgs["event"];
+  logoUrl: string | null;
 }) {
   const dateLine = event.event_date
     ? `${escapeHtml(event.name)} &middot; ${escapeHtml(formatDate(event.event_date))}`
@@ -190,9 +292,14 @@ function renderHtml({
 
           <table role="presentation" class="card bg-card" width="560" cellpadding="0" cellspacing="0" border="0" bgcolor="${COLORS.cardBg}" style="max-width:560px;width:100%;background-color:${COLORS.cardBg};border:1px solid ${COLORS.divider};border-radius:18px;">
 
-            <!-- TITLE -->
+            <!-- LOGO + TITLE -->
             <tr>
-              <td align="center" class="bg-card pad-x" bgcolor="${COLORS.cardBg}" style="background-color:${COLORS.cardBg};padding:40px 36px 8px 36px;text-align:center;">
+              <td align="center" class="bg-card pad-x" bgcolor="${COLORS.cardBg}" style="background-color:${COLORS.cardBg};padding:36px 36px 8px 36px;text-align:center;">
+                ${
+                  logoUrl
+                    ? `<img src="${escapeAttr(logoUrl)}" alt="Cursor" width="44" height="44" style="display:block;margin:0 auto 22px auto;width:44px;height:44px;border:0;outline:none;text-decoration:none;-ms-interpolation-mode:bicubic;" />`
+                    : ""
+                }
                 <div class="t-primary" style="font-family:${FONT_STACK};font-weight:600;font-size:24px;line-height:1.3;margin:0 0 8px 0;color:${COLORS.textPrimary};letter-spacing:-0.01em;mso-line-height-rule:exactly;">
                   Your Cursor credits are ready
                 </div>
