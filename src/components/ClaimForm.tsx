@@ -247,6 +247,117 @@ function ResultPanel({
   );
 }
 
+function CreditDelivery({
+  tone,
+  title,
+  creditUrl,
+  emailDelivered,
+  email,
+  alreadyClaimed,
+}: {
+  tone: "success" | "warn";
+  title: string;
+  creditUrl: string | null;
+  emailDelivered: boolean;
+  email: string;
+  alreadyClaimed?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  const tonePalette: Record<typeof tone, string> = {
+    success: "border-emerald-500/30 bg-emerald-500/[0.06]",
+    warn: "border-amber-400/30 bg-amber-400/[0.06]",
+  };
+  const dot: Record<typeof tone, string> = {
+    success: "bg-emerald-500",
+    warn: "bg-amber-400",
+  };
+
+  async function copyToClipboard() {
+    if (!creditUrl) return;
+    try {
+      await navigator.clipboard.writeText(creditUrl);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      // Fallback: select the input
+    }
+  }
+
+  return (
+    <div className={`rounded-xl border p-5 ${tonePalette[tone]}`}>
+      <div className="flex items-center gap-2">
+        <span className={`h-2 w-2 rounded-full ${dot[tone]}`} />
+        <h3 className="text-[15px] font-semibold text-ink 2xl:text-[16px]">
+          {title}
+        </h3>
+      </div>
+
+      {alreadyClaimed && (
+        <p className="mt-2 text-[13.5px] leading-relaxed text-ink-muted">
+          <strong className="text-ink">{email}</strong> already has a credit
+          assigned. Here it is again — save it somewhere safe.
+        </p>
+      )}
+
+      {creditUrl ? (
+        <>
+          <a
+            href={creditUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-primary mt-4"
+          >
+            Open my Cursor credits
+          </a>
+
+          <div className="mt-3 rounded-lg border border-line bg-bg-subtle p-3">
+            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-ink-dim">
+              Your link
+            </p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 truncate text-[12.5px] text-ink">
+                {creditUrl}
+              </code>
+              <button
+                type="button"
+                onClick={copyToClipboard}
+                className="shrink-0 rounded-md border border-line bg-bg-panel px-2.5 py-1 text-[12px] text-ink-muted transition hover:text-ink"
+              >
+                {copied ? "Copied" : "Copy"}
+              </button>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-1.5 text-[13px] leading-relaxed text-ink-muted">
+            {emailDelivered ? (
+              <p>
+                We also emailed this link to{" "}
+                <strong className="text-ink">{email}</strong> — it can take a
+                minute to arrive (check spam if needed).
+              </p>
+            ) : (
+              <p className="text-amber-700 dark:text-amber-300/90">
+                <strong>Save this link now</strong> — we couldn&apos;t email it
+                to you, but the link above is yours.
+              </p>
+            )}
+            <p className="text-[12.5px] text-ink-dim">
+              Tip: redeem while logged into the correct Cursor account. Credits
+              work for individual accounts only, not Team plans.
+            </p>
+          </div>
+        </>
+      ) : (
+        <p className="mt-2 text-[14px] leading-relaxed text-ink-muted">
+          We couldn&apos;t retrieve your credit link. Please contact the
+          organizer.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function Spinner() {
   return (
     <svg
