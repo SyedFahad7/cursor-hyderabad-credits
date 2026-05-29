@@ -139,6 +139,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ outcome: "no_credits" });
 
       case "already_claimed": {
+        let emailDelivered = false;
         if (row.cursor_url) {
           try {
             await sendCreditEmail({
@@ -147,12 +148,17 @@ export async function POST(req: Request) {
               creditUrl: row.cursor_url,
               event,
             });
+            emailDelivered = true;
           } catch (e) {
             console.warn("[claim] resend on already_claimed failed", e);
           }
         }
         await logAttempt({ eventId: event.id, email, ip, ua, outcome: "duplicate" });
-        return NextResponse.json({ outcome: "already_claimed" });
+        return NextResponse.json({
+          outcome: "already_claimed",
+          creditUrl: row.cursor_url,
+          emailDelivered,
+        });
       }
 
       case "success": {
@@ -163,6 +169,10 @@ export async function POST(req: Request) {
             { status: 500 },
           );
         }
+        // Email delivery is best-effort. The credit URL is returned to the
+        // browser regardless so the attendee can claim immediately even when
+        // Resend rejects the recipient (e.g. unverified-domain sandbox sender).
+        let emailDelivered = false;
         try {
           await sendCreditEmail({
             to: email,
@@ -170,22 +180,22 @@ export async function POST(req: Request) {
             creditUrl: row.cursor_url,
             event,
           });
+          emailDelivered = true;
         } catch (e) {
-          console.error("[claim] email send failed; rolling back", e);
-          if (row.attendee_id) {
-            await sb.rpc("revoke_credit", { p_attendee_id: row.attendee_id });
-          }
-          await logAttempt({ eventId: event.id, email, ip, ua, outcome: "error" });
-          return NextResponse.json(
-            {
-              outcome: "error",
-              message: "We couldn't send the email. Please try again.",
-            },
-            { status: 502 },
-          );
+          console.warn("[claim] email send failed (claim still valid)", e);
         }
-        await logAttempt({ eventId: event.id, email, ip, ua, outcome: "success" });
-        return NextResponse.json({ outcome: "success" });
+        await logAttempt({
+          eventId: event.id,
+          email,
+          ip,
+          ua,
+          outcome: "success",
+        });
+        return NextResponse.json({
+          outcome: "success",
+          creditUrl: row.cursor_url,
+          emailDelivered,
+        });
       }
 
       default:

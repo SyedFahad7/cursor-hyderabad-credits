@@ -5,8 +5,13 @@ import { useState, type FormEvent } from "react";
 type State =
   | { kind: "idle" }
   | { kind: "loading" }
-  | { kind: "success"; email: string }
-  | { kind: "already"; email: string }
+  | { kind: "success"; email: string; creditUrl: string; emailDelivered: boolean }
+  | {
+      kind: "already";
+      email: string;
+      creditUrl: string | null;
+      emailDelivered: boolean;
+    }
   | { kind: "not_found" }
   | { kind: "no_credits" }
   | { kind: "rate_limited"; retry: number }
@@ -29,16 +34,28 @@ export function ClaimForm({ eventSlug }: { eventSlug: string }) {
       });
       const json = (await res.json()) as {
         outcome: string;
+        creditUrl?: string;
+        emailDelivered?: boolean;
         retryAfter?: number;
         message?: string;
       };
 
       switch (json.outcome) {
         case "success":
-          setState({ kind: "success", email: trimmed });
+          setState({
+            kind: "success",
+            email: trimmed,
+            creditUrl: json.creditUrl ?? "",
+            emailDelivered: !!json.emailDelivered,
+          });
           break;
         case "already_claimed":
-          setState({ kind: "already", email: trimmed });
+          setState({
+            kind: "already",
+            email: trimmed,
+            creditUrl: json.creditUrl ?? null,
+            emailDelivered: !!json.emailDelivered,
+          });
           break;
         case "not_found":
           setState({ kind: "not_found" });
@@ -65,31 +82,25 @@ export function ClaimForm({ eventSlug }: { eventSlug: string }) {
 
   if (state.kind === "success") {
     return (
-      <ResultPanel
+      <CreditDelivery
         tone="success"
-        title="Check your email for your Cursor credits"
-        body={
-          <>
-            We just sent your unique credit link to{" "}
-            <strong className="text-ink">{state.email}</strong>. It can take a
-            minute to arrive — check spam if you don&apos;t see it.
-          </>
-        }
+        title="Your Cursor credits are ready"
+        creditUrl={state.creditUrl}
+        emailDelivered={state.emailDelivered}
+        email={state.email}
       />
     );
   }
 
   if (state.kind === "already") {
     return (
-      <ResultPanel
+      <CreditDelivery
         tone="warn"
         title="You've already claimed your credit"
-        body={
-          <>
-            <strong className="text-ink">{state.email}</strong> has already
-            been issued credits. We re-sent the original link to your inbox.
-          </>
-        }
+        creditUrl={state.creditUrl}
+        emailDelivered={state.emailDelivered}
+        email={state.email}
+        alreadyClaimed
       />
     );
   }
