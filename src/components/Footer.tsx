@@ -24,8 +24,8 @@ export function Footer() {
         </a>
       </p>
       <p className="mt-1 text-[13px] text-ink-muted 2xl:text-[14px] 3xl:text-[14.5px]">
-        Ambassador Hyderabad, India{" "}
-        <span className="font-semibold text-ink">Cursor</span>
+        Ambassador,{" "}
+        <span className="font-semibold text-ink">Cursor</span> India
       </p>
 
       <p className="mt-4 text-[12px] text-ink-dim 2xl:mt-5 2xl:text-[13px] 3xl:text-[13.5px]">
