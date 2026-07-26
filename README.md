@@ -28,7 +28,7 @@ Each event has its own attendee list, its own credit pool, and its own branded U
 - Cross-event rollup + per-event breakdown table (attendees, claimed, remaining, pool).
 - 24h analytics: attempts, success rate, not-found rate.
 - Recent successful claims + latest attempts feed (with event labels).
-- **Events**: full CRUD — create, toggle active, delete (only if empty).
+- **Events**: full CRUD — create, toggle active, delete (only if empty). Also **download leftovers** (unused credit URLs CSV) and **transfer leftovers** to another event.
 - **Attendees**: search by email, filter by event + status (all / claimed / unclaimed), **resend** credit email, **revoke** assigned credit.
 - **Credits**: full view of the credit pool per event (used / available).
 - **Import**: drag-and-drop CSV upload — select target event, then upload attendees or credit URLs.
@@ -75,9 +75,11 @@ npm install
    - `dashboard_stats` (global rollup) + `event_stats` (per-event) views
    - `claim_attendee_credit(email, event_slug)` atomic claim function
    - `revoke_credit(attendee_id)` function
+   - `transfer_unused_credits(source_event_id, target_event_id)` leftover pool transfer
    - Row-Level Security enabled on every table (anon has zero access; service role bypasses)
 3. **Already running the single-event version?** Run **`supabase/multi-event-migration.sql`** instead. It's idempotent, preserves all your existing attendees + credits by backfilling them into a default `hyderabad-meetup-may-24` event, and adds the new tables/columns/functions without dropping anything.
-4. Go to **Project Settings → API** and copy:
+4. **Already on multi-event and adding leftover transfer?** Run **`supabase/leftover-credits-migration.sql`** once in the SQL editor.
+5. Go to **Project Settings → API** and copy:
    - `URL` → `NEXT_PUBLIC_SUPABASE_URL`
    - `publishable` (sb_publishable_…) → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `secret` (sb_secret_…) → `SUPABASE_SERVICE_ROLE_KEY` **(server-only, keep secret)**
@@ -175,7 +177,8 @@ src/
 │           ├── login/, logout/  # Cookie-based session
 │           ├── attendees/[id]/{resend,revoke}/
 │           ├── import/{attendees,credits}/
-│           └── export/          # GET CSV of all claims
+│           ├── export/          # GET CSV of all claims
+│           └── events/[id]/{export-leftovers,transfer-leftovers}/
 ├── components/                  # BrandMark, ClaimForm, Footer
 └── lib/
     ├── env.ts                   # Zod-validated env loader
