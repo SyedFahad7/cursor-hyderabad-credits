@@ -30,6 +30,7 @@ Each event has its own attendee list, its own credit pool, and its own branded U
 - Recent successful claims + latest attempts feed (with event labels).
 - **Events**: full CRUD — create, toggle active, delete (only if empty). Also **download leftovers** (unused credit URLs CSV), **transfer leftovers** to another event, and optional **Luma event ID** for QR check-in → auto credit email.
 - **Luma check-in auto credit** (Luma Plus): when you scan a guest’s ticket with Luma’s built-in QR scanner, a verified webhook assigns a pool credit and emails it immediately. Approved guests are also synced into the allowlist on registration.
+- **Activity** tab: live claim/webhook logs (who, when, email sent/failed), Luma delivery outcomes, and credit-link click analytics via tracked email links.
 - **Attendees**: search by email, filter by event + status (all / claimed / unclaimed), **resend** credit email, **revoke** assigned credit.
 - **Credits**: full view of the credit pool per event (used / available).
 - **Import**: drag-and-drop CSV upload — select target event, then upload attendees or credit URLs.
@@ -81,7 +82,8 @@ npm install
 3. **Already running the single-event version?** Run **`supabase/multi-event-migration.sql`** instead. It's idempotent, preserves all your existing attendees + credits by backfilling them into a default `hyderabad-meetup-may-24` event, and adds the new tables/columns/functions without dropping anything.
 4. **Already on multi-event and adding leftover transfer?** Run **`supabase/leftover-credits-migration.sql`** once in the SQL editor.
 5. **Adding Luma check-in auto credit?** Run **`supabase/luma-checkin-migration.sql`** once (adds `events.luma_event_id` + `webhook_deliveries`).
-6. Go to **Project Settings → API** and copy:
+6. **Adding Activity tab logging?** Run **`supabase/activity-logging-migration.sql`** once (email delivery + click fields).
+7. Go to **Project Settings → API** and copy:
    - `URL` → `NEXT_PUBLIC_SUPABASE_URL`
    - `publishable` (sb_publishable_…) → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `secret` (sb_secret_…) → `SUPABASE_SERVICE_ROLE_KEY` **(server-only, keep secret)**

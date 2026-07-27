@@ -43,6 +43,8 @@ export async function POST(req: Request) {
       ip,
       ua,
       outcome: "rate_limited",
+      source: "public",
+      emailDelivered: false,
     });
     return NextResponse.json(
       { outcome: "rate_limited", retryAfter: rate.retryAfterSeconds },
@@ -58,6 +60,8 @@ export async function POST(req: Request) {
       ip,
       ua,
       outcome: "event_not_found",
+      source: "public",
+      emailDelivered: false,
     });
     return NextResponse.json(
       { outcome: "event_not_found", message: "Event not found." },
@@ -71,6 +75,7 @@ export async function POST(req: Request) {
     event,
     ip,
     ua,
+    source: "public",
   });
 
   switch (result.outcome) {

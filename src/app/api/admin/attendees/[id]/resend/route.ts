@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { verifyAdminSession } from "@/lib/adminAuth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { sendCreditEmail } from "@/lib/email";
+import { buildTrackedCreditUrl } from "@/lib/trackLink";
+import { logClaimAttempt } from "@/lib/claimCredit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -57,10 +59,32 @@ export async function POST(
     await sendCreditEmail({
       to: attendee.email,
       name: attendee.name,
-      creditUrl: credit.cursor_url,
+      creditUrl: buildTrackedCreditUrl(attendee.id, credit.cursor_url),
       event,
     });
+    await sb
+      .from("attendees")
+      .update({ credit_email_sent_at: new Date().toISOString() })
+      .eq("id", attendee.id);
+    await logClaimAttempt({
+      eventId: attendee.event_id,
+      email: attendee.email,
+      ip: "admin",
+      ua: "admin-resend",
+      outcome: "duplicate",
+      source: "admin",
+      emailDelivered: true,
+    });
   } catch (e) {
+    await logClaimAttempt({
+      eventId: attendee.event_id,
+      email: attendee.email,
+      ip: "admin",
+      ua: "admin-resend",
+      outcome: "duplicate",
+      source: "admin",
+      emailDelivered: false,
+    });
     return NextResponse.json(
       { message: e instanceof Error ? e.message : "Email failed" },
       { status: 502 },

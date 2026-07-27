@@ -57,6 +57,8 @@ export type Attendee = {
   claimed: boolean;
   claimed_at: string | null;
   credit_id: string | null;
+  credit_email_sent_at: string | null;
+  credit_link_clicked_at: string | null;
   created_at: string;
 };
 

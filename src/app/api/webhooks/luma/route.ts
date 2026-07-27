@@ -30,9 +30,20 @@ async function beginDelivery(
   return true;
 }
 
-async function finishDelivery(id: string, outcome: string) {
+async function finishDelivery(
+  id: string,
+  outcome: string,
+  extra?: { email?: string | null; eventId?: string | null },
+) {
   const sb = getSupabaseAdmin();
-  await sb.from("webhook_deliveries").update({ outcome }).eq("id", id);
+  await sb
+    .from("webhook_deliveries")
+    .update({
+      outcome,
+      ...(extra?.email !== undefined && { email: extra.email }),
+      ...(extra?.eventId !== undefined && { event_id: extra.eventId }),
+    })
+    .eq("id", id);
 }
 
 async function upsertAttendee(args: {
@@ -148,7 +159,9 @@ export async function POST(req: Request) {
 
   const event = await getEventByLumaId(guest.lumaEventId);
   if (!event) {
-    await finishDelivery(webhookId, "unmapped_event");
+    await finishDelivery(webhookId, "unmapped_event", {
+      email: guest.email,
+    });
     return NextResponse.json({ ok: true, ignored: true, reason: "unmapped_event" });
   }
 
@@ -160,11 +173,17 @@ export async function POST(req: Request) {
         email: guest.email,
         name: guest.name,
       });
-      await finishDelivery(webhookId, "allowlist_upsert");
+      await finishDelivery(webhookId, "allowlist_upsert", {
+        email: guest.email,
+        eventId: event.id,
+      });
       return NextResponse.json({ ok: true, action: "allowlist_upsert" });
     } catch (e) {
       console.error("[luma webhook] allowlist upsert failed", e);
-      await finishDelivery(webhookId, "allowlist_upsert_error");
+      await finishDelivery(webhookId, "allowlist_upsert_error", {
+        email: guest.email,
+        eventId: event.id,
+      });
       return NextResponse.json({ message: "Upsert failed" }, { status: 500 });
     }
   }
@@ -177,7 +196,10 @@ export async function POST(req: Request) {
       guest.approvalStatus &&
       !isLumaApproved(guest.approvalStatus)
     ) {
-      await finishDelivery(webhookId, "checked_in_not_approved");
+      await finishDelivery(webhookId, "checked_in_not_approved", {
+        email: guest.email,
+        eventId: event.id,
+      });
       return NextResponse.json({ ok: true, ignored: true });
     }
 
@@ -189,7 +211,10 @@ export async function POST(req: Request) {
       });
     } catch (e) {
       console.error("[luma webhook] check-in upsert failed", e);
-      await finishDelivery(webhookId, "checkin_upsert_error");
+      await finishDelivery(webhookId, "checkin_upsert_error", {
+        email: guest.email,
+        eventId: event.id,
+      });
       return NextResponse.json({ message: "Upsert failed" }, { status: 500 });
     }
 
@@ -199,9 +224,13 @@ export async function POST(req: Request) {
       event,
       ip: "luma-webhook",
       ua: `luma-webhook/${type}`,
+      source: "luma",
     });
 
-    await finishDelivery(webhookId, `checkin_${result.outcome}`);
+    await finishDelivery(webhookId, `checkin_${result.outcome}`, {
+      email: guest.email,
+      eventId: event.id,
+    });
     return NextResponse.json({
       ok: true,
       action: "checkin_claim",
@@ -210,6 +239,9 @@ export async function POST(req: Request) {
     });
   }
 
-  await finishDelivery(webhookId, "no_action");
+  await finishDelivery(webhookId, "no_action", {
+    email: guest.email,
+    eventId: event.id,
+  });
   return NextResponse.json({ ok: true, ignored: true });
 }

@@ -1,6 +1,7 @@
 import { getSupabaseAdmin, type Event } from "@/lib/supabase";
 import { sendCreditEmail } from "@/lib/email";
 import { getEventBySlug } from "@/lib/events";
+import { buildTrackedCreditUrl } from "@/lib/trackLink";
 
 export type ClaimRpcStatus =
   | "success"
@@ -17,6 +18,8 @@ export type ClaimAttemptOutcome =
   | "rate_limited"
   | "event_not_found"
   | "error";
+
+export type ClaimSource = "public" | "luma" | "admin";
 
 type ClaimRow = {
   status: ClaimRpcStatus;
@@ -38,6 +41,7 @@ export type ClaimAndEmailResult = {
   emailDelivered: boolean;
   event: Event | null;
   attendeeName: string | null;
+  attendeeId: string | null;
   message?: string;
 };
 
@@ -47,6 +51,8 @@ export async function logClaimAttempt(args: {
   ip: string;
   ua: string;
   outcome: ClaimAttemptOutcome;
+  source?: ClaimSource;
+  emailDelivered?: boolean | null;
 }) {
   try {
     const sb = getSupabaseAdmin();
@@ -56,10 +62,43 @@ export async function logClaimAttempt(args: {
       ip: args.ip,
       user_agent: args.ua,
       outcome: args.outcome,
+      source: args.source ?? null,
+      email_delivered:
+        args.emailDelivered === undefined ? null : args.emailDelivered,
     });
   } catch {
     // never let logging failures take down the request
   }
+}
+
+async function markEmailSent(attendeeId: string | null | undefined) {
+  if (!attendeeId) return;
+  try {
+    const sb = getSupabaseAdmin();
+    await sb
+      .from("attendees")
+      .update({ credit_email_sent_at: new Date().toISOString() })
+      .eq("id", attendeeId);
+  } catch {
+    /* ignore */
+  }
+}
+
+async function sendTrackedCreditEmail(args: {
+  to: string;
+  name: string | null;
+  creditUrl: string;
+  event: Event;
+  attendeeId: string | null;
+}) {
+  const tracked = buildTrackedCreditUrl(args.attendeeId, args.creditUrl);
+  await sendCreditEmail({
+    to: args.to,
+    name: args.name,
+    creditUrl: tracked,
+    event: args.event,
+  });
+  await markEmailSent(args.attendeeId);
 }
 
 /**
@@ -73,12 +112,14 @@ export async function claimAndEmailCredit(args: {
   event?: Event | null;
   ip: string;
   ua: string;
+  source?: ClaimSource;
   /** When false, skip email (caller will handle). Default true. */
   sendEmail?: boolean;
 }): Promise<ClaimAndEmailResult> {
   const email = args.email.trim().toLowerCase();
   const eventSlug = args.eventSlug.toLowerCase().trim();
   const sendEmail = args.sendEmail !== false;
+  const source = args.source ?? "public";
   const sb = getSupabaseAdmin();
 
   const event =
@@ -91,6 +132,8 @@ export async function claimAndEmailCredit(args: {
       ip: args.ip,
       ua: args.ua,
       outcome: "event_not_found",
+      source,
+      emailDelivered: false,
     });
     return {
       outcome: "event_not_found",
@@ -98,6 +141,7 @@ export async function claimAndEmailCredit(args: {
       emailDelivered: false,
       event: event ?? null,
       attendeeName: null,
+      attendeeId: null,
     };
   }
 
@@ -115,6 +159,8 @@ export async function claimAndEmailCredit(args: {
         ip: args.ip,
         ua: args.ua,
         outcome: "error",
+        source,
+        emailDelivered: false,
       });
       return {
         outcome: "error",
@@ -122,6 +168,7 @@ export async function claimAndEmailCredit(args: {
         emailDelivered: false,
         event,
         attendeeName: null,
+        attendeeId: null,
         message: "Server error. Please try again.",
       };
     }
@@ -134,6 +181,8 @@ export async function claimAndEmailCredit(args: {
         ip: args.ip,
         ua: args.ua,
         outcome: "error",
+        source,
+        emailDelivered: false,
       });
       return {
         outcome: "error",
@@ -141,6 +190,7 @@ export async function claimAndEmailCredit(args: {
         emailDelivered: false,
         event,
         attendeeName: null,
+        attendeeId: null,
         message: "Unexpected response.",
       };
     }
@@ -153,6 +203,8 @@ export async function claimAndEmailCredit(args: {
           ip: args.ip,
           ua: args.ua,
           outcome: "event_not_found",
+          source,
+          emailDelivered: false,
         });
         return {
           outcome: "event_not_found",
@@ -160,6 +212,7 @@ export async function claimAndEmailCredit(args: {
           emailDelivered: false,
           event,
           attendeeName: null,
+          attendeeId: null,
         };
 
       case "not_found":
@@ -169,6 +222,8 @@ export async function claimAndEmailCredit(args: {
           ip: args.ip,
           ua: args.ua,
           outcome: "not_found",
+          source,
+          emailDelivered: false,
         });
         return {
           outcome: "not_found",
@@ -176,6 +231,7 @@ export async function claimAndEmailCredit(args: {
           emailDelivered: false,
           event,
           attendeeName: null,
+          attendeeId: null,
         };
 
       case "no_credits":
@@ -185,6 +241,8 @@ export async function claimAndEmailCredit(args: {
           ip: args.ip,
           ua: args.ua,
           outcome: "no_credits",
+          source,
+          emailDelivered: false,
         });
         return {
           outcome: "no_credits",
@@ -192,17 +250,19 @@ export async function claimAndEmailCredit(args: {
           emailDelivered: false,
           event,
           attendeeName: row.attendee_name,
+          attendeeId: row.attendee_id,
         };
 
       case "already_claimed": {
         let emailDelivered = false;
         if (sendEmail && row.cursor_url) {
           try {
-            await sendCreditEmail({
+            await sendTrackedCreditEmail({
               to: email,
               name: row.attendee_name,
               creditUrl: row.cursor_url,
               event,
+              attendeeId: row.attendee_id,
             });
             emailDelivered = true;
           } catch (e) {
@@ -215,6 +275,8 @@ export async function claimAndEmailCredit(args: {
           ip: args.ip,
           ua: args.ua,
           outcome: "duplicate",
+          source,
+          emailDelivered: sendEmail ? emailDelivered : null,
         });
         return {
           outcome: "already_claimed",
@@ -222,6 +284,7 @@ export async function claimAndEmailCredit(args: {
           emailDelivered,
           event,
           attendeeName: row.attendee_name,
+          attendeeId: row.attendee_id,
         };
       }
 
@@ -233,6 +296,8 @@ export async function claimAndEmailCredit(args: {
             ip: args.ip,
             ua: args.ua,
             outcome: "error",
+            source,
+            emailDelivered: false,
           });
           return {
             outcome: "error",
@@ -240,6 +305,7 @@ export async function claimAndEmailCredit(args: {
             emailDelivered: false,
             event,
             attendeeName: row.attendee_name,
+            attendeeId: row.attendee_id,
             message: "Credit assignment failed.",
           };
         }
@@ -247,11 +313,12 @@ export async function claimAndEmailCredit(args: {
         let emailDelivered = false;
         if (sendEmail) {
           try {
-            await sendCreditEmail({
+            await sendTrackedCreditEmail({
               to: email,
               name: row.attendee_name,
               creditUrl: row.cursor_url,
               event,
+              attendeeId: row.attendee_id,
             });
             emailDelivered = true;
           } catch (e) {
@@ -265,6 +332,8 @@ export async function claimAndEmailCredit(args: {
           ip: args.ip,
           ua: args.ua,
           outcome: "success",
+          source,
+          emailDelivered: sendEmail ? emailDelivered : null,
         });
         return {
           outcome: "success",
@@ -272,6 +341,7 @@ export async function claimAndEmailCredit(args: {
           emailDelivered,
           event,
           attendeeName: row.attendee_name,
+          attendeeId: row.attendee_id,
         };
       }
 
@@ -282,6 +352,8 @@ export async function claimAndEmailCredit(args: {
           ip: args.ip,
           ua: args.ua,
           outcome: "error",
+          source,
+          emailDelivered: false,
         });
         return {
           outcome: "error",
@@ -289,6 +361,7 @@ export async function claimAndEmailCredit(args: {
           emailDelivered: false,
           event,
           attendeeName: null,
+          attendeeId: null,
           message: "Unknown status.",
         };
     }
@@ -300,6 +373,8 @@ export async function claimAndEmailCredit(args: {
       ip: args.ip,
       ua: args.ua,
       outcome: "error",
+      source,
+      emailDelivered: false,
     });
     return {
       outcome: "error",
@@ -307,6 +382,7 @@ export async function claimAndEmailCredit(args: {
       emailDelivered: false,
       event,
       attendeeName: null,
+      attendeeId: null,
       message: "Unexpected error.",
     };
   }

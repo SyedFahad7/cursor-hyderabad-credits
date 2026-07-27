@@ -48,12 +48,14 @@ create index if not exists events_active_idx on public.events (active) where act
 -- attendees: approved participants per event
 -- ============================================================================
 create table if not exists public.attendees (
-  id          uuid primary key default gen_random_uuid(),
-  event_id    uuid not null references public.events(id) on delete cascade,
-  email       text not null,
-  name        text,
-  claimed     boolean not null default false,
-  claimed_at  timestamptz,
+  id                      uuid primary key default gen_random_uuid(),
+  event_id                uuid not null references public.events(id) on delete cascade,
+  email                   text not null,
+  name                    text,
+  claimed                 boolean not null default false,
+  claimed_at              timestamptz,
+  credit_email_sent_at    timestamptz,
+  credit_link_clicked_at  timestamptz,
   credit_id   uuid,
   created_at  timestamptz not null default now()
 );
@@ -97,18 +99,21 @@ end $$;
 -- claim_attempts: audit log for rate limiting + analytics
 -- ============================================================================
 create table if not exists public.claim_attempts (
-  id          bigserial primary key,
-  event_id    uuid references public.events(id) on delete set null,
-  email       text,
-  ip          text,
-  outcome     text not null,
-  user_agent  text,
-  created_at  timestamptz not null default now()
+  id              bigserial primary key,
+  event_id        uuid references public.events(id) on delete set null,
+  email           text,
+  ip              text,
+  outcome         text not null,
+  user_agent      text,
+  source          text,              -- public | luma | admin
+  email_delivered boolean,
+  created_at      timestamptz not null default now()
 );
 
 create index if not exists claim_attempts_created_at_idx on public.claim_attempts (created_at desc);
 create index if not exists claim_attempts_ip_idx         on public.claim_attempts (ip, created_at desc);
 create index if not exists claim_attempts_event_id_idx   on public.claim_attempts (event_id);
+create index if not exists claim_attempts_source_idx     on public.claim_attempts (source, created_at desc);
 
 -- ============================================================================
 -- claim_attendee_credit(p_email, p_event_slug): atomic, event-scoped claim
@@ -288,8 +293,13 @@ create table if not exists public.webhook_deliveries (
   id           text primary key,
   event_type   text,
   outcome      text,
+  email        text,
+  event_id     uuid references public.events(id) on delete set null,
   processed_at timestamptz not null default now()
 );
+
+create index if not exists webhook_deliveries_processed_at_idx
+  on public.webhook_deliveries (processed_at desc);
 
 alter table public.events             enable row level security;
 alter table public.attendees          enable row level security;
