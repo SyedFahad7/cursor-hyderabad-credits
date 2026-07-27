@@ -31,6 +31,7 @@ export type Event = {
   event_date: string | null;
   organizer: string | null;
   host: string | null;
+  luma_event_id: string | null;
   active: boolean;
   created_at: string;
 };
@@ -41,6 +42,7 @@ export type EventStats = {
   name: string;
   active: boolean;
   event_date: string | null;
+  luma_event_id: string | null;
   total_attendees: number;
   total_claimed: number;
   total_credits: number;

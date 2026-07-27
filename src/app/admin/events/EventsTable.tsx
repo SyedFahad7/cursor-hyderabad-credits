@@ -12,6 +12,35 @@ export function EventsTable({ rows }: { rows: EventStats[] }) {
   const [err, setErr] = useState<string | null>(null);
   const [msg, setMsg] = useState<string | null>(null);
   const [targets, setTargets] = useState<Record<string, string>>({});
+  const [lumaIds, setLumaIds] = useState<Record<string, string>>(() =>
+    Object.fromEntries(rows.map((r) => [r.event_id, r.luma_event_id ?? ""])),
+  );
+
+  async function saveLumaId(id: string, name: string) {
+    setBusyId(id);
+    setErr(null);
+    setMsg(null);
+    const value = (lumaIds[id] ?? "").trim();
+    try {
+      const res = await fetch(`/api/admin/events/${id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ luma_event_id: value || null }),
+      });
+      const json = (await res.json()) as { message?: string };
+      if (!res.ok) throw new Error(json.message ?? "Failed");
+      setMsg(
+        value
+          ? `Luma check-in auto-credit enabled for "${name}".`
+          : `Luma event ID cleared for "${name}".`,
+      );
+      router.refresh();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
 
   async function toggleActive(id: string, next: boolean) {
     setBusyId(id);
@@ -168,6 +197,11 @@ export function EventsTable({ rows }: { rows: EventStats[] }) {
                         </>
                       )}
                     </div>
+                    {e.luma_event_id && (
+                      <div className="mt-1 text-[11px] text-emerald-700 dark:text-emerald-300/90">
+                        Luma check-in auto-credit enabled
+                      </div>
+                    )}
                   </td>
                   <td className="px-4 py-3 text-ink-muted">
                     <span className="text-ink">{e.total_claimed}</span>
@@ -218,6 +252,34 @@ export function EventsTable({ rows }: { rows: EventStats[] }) {
                           className="h-8 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 text-xs text-rose-700 transition hover:bg-rose-500/20 disabled:opacity-40 dark:text-rose-200"
                         >
                           Delete
+                        </button>
+                      </div>
+
+                      <div className="inline-flex flex-wrap items-center justify-end gap-2">
+                        <input
+                          value={lumaIds[e.event_id] ?? ""}
+                          onChange={(ev) =>
+                            setLumaIds((prev) => ({
+                              ...prev,
+                              [e.event_id]: ev.target.value,
+                            }))
+                          }
+                          disabled={busy}
+                          placeholder="Luma evt-…"
+                          className="h-8 w-[140px] rounded-xl border border-line bg-bg px-2 text-xs text-ink disabled:opacity-40"
+                          aria-label={`Luma event ID for ${e.name}`}
+                        />
+                        <button
+                          type="button"
+                          onClick={() => saveLumaId(e.event_id, e.name)}
+                          disabled={
+                            busy ||
+                            (lumaIds[e.event_id] ?? "") ===
+                              (e.luma_event_id ?? "")
+                          }
+                          className="btn-ghost h-8 px-3 text-xs disabled:opacity-40"
+                        >
+                          Save Luma ID
                         </button>
                       </div>
 

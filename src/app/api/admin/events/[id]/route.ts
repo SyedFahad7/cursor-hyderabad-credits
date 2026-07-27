@@ -13,6 +13,7 @@ const PatchBody = z.object({
   event_date: z.string().optional().nullable(),
   organizer: z.string().max(120).optional().nullable(),
   host: z.string().max(120).optional().nullable(),
+  luma_event_id: z.string().max(120).optional().nullable(),
   active: z.boolean().optional(),
 });
 
@@ -51,6 +52,9 @@ export async function PATCH(req: Request, ctx: Ctx) {
       ...(body.event_date !== undefined && { event_date: body.event_date || null }),
       ...(body.organizer !== undefined && { organizer: body.organizer?.trim() || null }),
       ...(body.host !== undefined && { host: body.host?.trim() || null }),
+      ...(body.luma_event_id !== undefined && {
+        luma_event_id: body.luma_event_id?.trim() || null,
+      }),
       ...(body.active !== undefined && { active: body.active }),
     })
     .eq("id", id)

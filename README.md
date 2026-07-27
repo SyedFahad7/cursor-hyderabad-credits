@@ -28,7 +28,8 @@ Each event has its own attendee list, its own credit pool, and its own branded U
 - Cross-event rollup + per-event breakdown table (attendees, claimed, remaining, pool).
 - 24h analytics: attempts, success rate, not-found rate.
 - Recent successful claims + latest attempts feed (with event labels).
-- **Events**: full CRUD — create, toggle active, delete (only if empty). Also **download leftovers** (unused credit URLs CSV) and **transfer leftovers** to another event.
+- **Events**: full CRUD — create, toggle active, delete (only if empty). Also **download leftovers** (unused credit URLs CSV), **transfer leftovers** to another event, and optional **Luma event ID** for QR check-in → auto credit email.
+- **Luma check-in auto credit** (Luma Plus): when you scan a guest’s ticket with Luma’s built-in QR scanner, a verified webhook assigns a pool credit and emails it immediately. Approved guests are also synced into the allowlist on registration.
 - **Attendees**: search by email, filter by event + status (all / claimed / unclaimed), **resend** credit email, **revoke** assigned credit.
 - **Credits**: full view of the credit pool per event (used / available).
 - **Import**: drag-and-drop CSV upload — select target event, then upload attendees or credit URLs.
@@ -79,7 +80,8 @@ npm install
    - Row-Level Security enabled on every table (anon has zero access; service role bypasses)
 3. **Already running the single-event version?** Run **`supabase/multi-event-migration.sql`** instead. It's idempotent, preserves all your existing attendees + credits by backfilling them into a default `hyderabad-meetup-may-24` event, and adds the new tables/columns/functions without dropping anything.
 4. **Already on multi-event and adding leftover transfer?** Run **`supabase/leftover-credits-migration.sql`** once in the SQL editor.
-5. Go to **Project Settings → API** and copy:
+5. **Adding Luma check-in auto credit?** Run **`supabase/luma-checkin-migration.sql`** once (adds `events.luma_event_id` + `webhook_deliveries`).
+6. Go to **Project Settings → API** and copy:
    - `URL` → `NEXT_PUBLIC_SUPABASE_URL`
    - `publishable` (sb_publishable_…) → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `secret` (sb_secret_…) → `SUPABASE_SERVICE_ROLE_KEY` **(server-only, keep secret)**
@@ -109,6 +111,7 @@ Required keys (see `.env.example` for the full list):
 | `RESEND_FROM_EMAIL` | A verified Resend sender |
 | `ADMIN_PASSWORD` | Anything strong — used to log into `/admin` |
 | `ADMIN_SESSION_SECRET` | Any 32+ char random string |
+| `LUMA_WEBHOOK_SECRET` | Optional — Luma Plus webhook secret (`whsec_…`) for check-in auto credit |
 
 ### 5. Run locally
 
@@ -135,6 +138,24 @@ Open <http://localhost:3000>.
 3. Check the inbox — the credit email should arrive within seconds.
 4. Try the same email again → you'll see the **already claimed** state.
 5. Try an email that isn't on the list → **not-on-list** state.
+
+### 8. Luma check-in → auto credit (optional, Luma Plus)
+
+Door flow: guest is **accepted** on Luma → you scan their ticket with Luma’s QR check-in → webhook assigns a credit from that event’s pool and emails it immediately. The public `/e/<slug>` page remains as backup.
+
+1. Run **`supabase/luma-checkin-migration.sql`** in the Supabase SQL editor (if you haven’t already).
+2. In Luma: **Calendars → your calendar → Settings → Developer → Webhooks → Create**
+   - URL: `https://<your-prod-host>/api/webhooks/luma`
+   - Event types: `guest.updated`, `guest.registered`
+   - Copy the `whsec_…` secret → set `LUMA_WEBHOOK_SECRET` in `.env.local` and Vercel
+3. In admin **Events**, set the event’s **Luma event ID** (`evt-…` from the Luma event URL) and save.
+4. Import / ensure a **credit pool** for that event (attendees can also sync from Luma when they are approved).
+5. Smoke-test checklist:
+   - [ ] Check in a test guest with Luma QR → credit email arrives; admin shows claimed
+   - [ ] Check in again / replay webhook → no second credit burned
+   - [ ] Guest update without check-in → no credit email
+   - [ ] Invalid signature → `401`
+   - [ ] Event without `luma_event_id` → webhook ignored safely
 
 ---
 
@@ -173,6 +194,7 @@ src/
 │   │   └── import/              # CSV uploaders
 │   └── api/
 │       ├── claim/               # POST: public claim endpoint
+│       ├── webhooks/luma/       # POST: Luma check-in → claim + email
 │       └── admin/
 │           ├── login/, logout/  # Cookie-based session
 │           ├── attendees/[id]/{resend,revoke}/
@@ -184,6 +206,8 @@ src/
     ├── env.ts                   # Zod-validated env loader
     ├── supabase.ts              # Server-only admin client
     ├── adminAuth.ts             # HMAC-signed cookie auth
+    ├── claimCredit.ts           # Shared claim RPC + email
+    ├── lumaWebhook.ts           # Signature verify + payload parse
     ├── rateLimit.ts             # In-memory sliding window
     ├── email.ts                 # Resend client + HTML template
     └── csv.ts                   # Robust CSV parsing & generation

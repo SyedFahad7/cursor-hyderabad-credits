@@ -37,6 +37,24 @@ export async function getEventBySlug(slug: string): Promise<Event | null> {
   return (data as Event | null) ?? null;
 }
 
+export async function getEventByLumaId(
+  lumaEventId: string,
+): Promise<Event | null> {
+  const id = lumaEventId.trim();
+  if (!id) return null;
+  const sb = getSupabaseAdmin();
+  const { data, error } = await sb
+    .from("events")
+    .select("*")
+    .eq("luma_event_id", id)
+    .maybeSingle();
+  if (error) {
+    console.error("[events.getEventByLumaId]", error);
+    return null;
+  }
+  return (data as Event | null) ?? null;
+}
+
 export async function getEventStats(slug: string): Promise<EventStats | null> {
   const sb = getSupabaseAdmin();
   const { data, error } = await sb

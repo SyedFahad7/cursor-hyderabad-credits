@@ -34,6 +34,7 @@ export function CreateEventForm() {
       event_date: String(fd.get("event_date") ?? "").trim() || null,
       organizer: String(fd.get("organizer") ?? "").trim() || null,
       host: String(fd.get("host") ?? "").trim() || null,
+      luma_event_id: String(fd.get("luma_event_id") ?? "").trim() || null,
       active: fd.get("active") === "on",
     };
 
@@ -147,6 +148,18 @@ export function CreateEventForm() {
           />
         </Field>
       </div>
+
+      <Field
+        label="Luma event ID"
+        hint="Optional. From the Luma event URL (evt-…). Enables QR check-in → auto credit email."
+      >
+        <input
+          name="luma_event_id"
+          maxLength={120}
+          placeholder="evt-xxxxxxxx"
+          className="input"
+        />
+      </Field>
 
       <label className="flex items-start gap-2.5 rounded-xl border border-line bg-bg-subtle/60 p-3 text-[12.5px] text-ink-muted">
         <input

@@ -20,9 +20,15 @@ create table if not exists public.events (
   event_date      date,
   organizer       text,
   host            text,
+  -- Luma event api id (e.g. evt-...) for check-in webhook → auto credit
+  luma_event_id   text,
   active          boolean not null default true,
   created_at      timestamptz not null default now()
 );
+
+create unique index if not exists events_luma_event_id_uidx
+  on public.events (luma_event_id)
+  where luma_event_id is not null;
 
 do $$
 begin
@@ -277,15 +283,25 @@ grant execute on function public.transfer_unused_credits(uuid, uuid) to service_
 -- ============================================================================
 -- RLS
 -- ============================================================================
-alter table public.events        enable row level security;
-alter table public.attendees     enable row level security;
-alter table public.credit_links  enable row level security;
-alter table public.claim_attempts enable row level security;
+-- Idempotency for inbound Luma webhooks (Webhook-Id header)
+create table if not exists public.webhook_deliveries (
+  id           text primary key,
+  event_type   text,
+  outcome      text,
+  processed_at timestamptz not null default now()
+);
+
+alter table public.events             enable row level security;
+alter table public.attendees          enable row level security;
+alter table public.credit_links       enable row level security;
+alter table public.claim_attempts     enable row level security;
+alter table public.webhook_deliveries enable row level security;
 
 drop policy if exists "deny all" on public.events;
 drop policy if exists "deny all" on public.attendees;
 drop policy if exists "deny all" on public.credit_links;
 drop policy if exists "deny all" on public.claim_attempts;
+drop policy if exists "deny all" on public.webhook_deliveries;
 
 -- ============================================================================
 -- Views for the admin dashboard
@@ -298,6 +314,7 @@ select
   e.name,
   e.active,
   e.event_date,
+  e.luma_event_id,
   (select count(*) from public.attendees a where a.event_id = e.id)                              as total_attendees,
   (select count(*) from public.attendees a where a.event_id = e.id and a.claimed)                as total_claimed,
   (select count(*) from public.credit_links c where c.event_id = e.id)                           as total_credits,

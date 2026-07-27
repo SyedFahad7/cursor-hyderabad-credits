@@ -15,6 +15,7 @@ const Body = z.object({
   event_date: z.string().optional().nullable(),
   organizer: z.string().max(120).optional().nullable(),
   host: z.string().max(120).optional().nullable(),
+  luma_event_id: z.string().max(120).optional().nullable(),
   active: z.boolean().default(true),
 });
 
@@ -49,6 +50,7 @@ export async function POST(req: Request) {
       event_date: body.event_date || null,
       organizer: body.organizer?.trim() || null,
       host: body.host?.trim() || null,
+      luma_event_id: body.luma_event_id?.trim() || null,
       active: body.active,
     })
     .select()
