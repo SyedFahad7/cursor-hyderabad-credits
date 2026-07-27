@@ -86,15 +86,14 @@ export async function POST(req: Request) {
     case "no_credits":
       return NextResponse.json({ outcome: "no_credits" });
     case "already_claimed":
+      // Never return the credit URL to the browser — email only.
       return NextResponse.json({
         outcome: "already_claimed",
-        creditUrl: result.creditUrl,
         emailDelivered: result.emailDelivered,
       });
     case "success":
       return NextResponse.json({
         outcome: "success",
-        creditUrl: result.creditUrl,
         emailDelivered: result.emailDelivered,
       });
     default:

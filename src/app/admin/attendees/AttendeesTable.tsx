@@ -83,7 +83,9 @@ export function AttendeesTable({
 
   async function revoke(id: string) {
     if (
-      !confirm("Revoke this attendee's credit? The link goes back into the pool.")
+      !confirm(
+        "Revoke this attendee's credit? The old link goes back into the unused pool (only use if the URL was never redeemed).",
+      )
     )
       return;
     setBusyId(id);
@@ -95,6 +97,30 @@ export function AttendeesTable({
       const json = (await res.json()) as { ok?: boolean; message?: string };
       if (!res.ok) throw new Error(json.message ?? "Failed");
       setFlash({ kind: "ok", msg: "Credit revoked." });
+      router.refresh();
+    } catch (e) {
+      setFlash({ kind: "err", msg: e instanceof Error ? e.message : "Failed" });
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function reissue(id: string, email: string) {
+    if (
+      !confirm(
+        `Reissue a FRESH credit for ${email}?\n\nThe old URL is burned (not returned to the pool) and a new unused link is assigned + emailed. Use this when their old Cursor link is already redeemed or broken.`,
+      )
+    )
+      return;
+    setBusyId(id);
+    setFlash(null);
+    try {
+      const res = await fetch(`/api/admin/attendees/${id}/reissue`, {
+        method: "POST",
+      });
+      const json = (await res.json()) as { ok?: boolean; message?: string };
+      if (!res.ok) throw new Error(json.message ?? "Failed");
+      setFlash({ kind: "ok", msg: json.message ?? "Fresh credit issued." });
       router.refresh();
     } catch (e) {
       setFlash({ kind: "err", msg: e instanceof Error ? e.message : "Failed" });
@@ -213,7 +239,7 @@ export function AttendeesTable({
                   {r.claimed_at ? fmtDateTime(r.claimed_at) : "—"}
                 </Td>
                 <Td className="text-right">
-                  <div className="inline-flex gap-2">
+                  <div className="inline-flex flex-wrap justify-end gap-2">
                     <button
                       type="button"
                       onClick={() => resend(r.id)}
@@ -221,6 +247,15 @@ export function AttendeesTable({
                       className="btn-ghost h-8 px-3 text-xs disabled:opacity-40"
                     >
                       {busyId === r.id ? "…" : "Resend"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => reissue(r.id, r.email)}
+                      disabled={!r.claimed || busyId === r.id}
+                      className="btn-ghost h-8 px-3 text-xs disabled:opacity-40"
+                      title="Burn old URL and assign a fresh unused credit"
+                    >
+                      Reissue
                     </button>
                     <button
                       type="button"

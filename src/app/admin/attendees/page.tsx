@@ -60,7 +60,8 @@ export default async function AttendeesPage({
           Attendees
         </h1>
         <p className="mt-1 text-sm text-ink-muted 2xl:text-[15px]">
-          Search, resend the credit email, or revoke an issued credit.
+          Search, resend email, reissue a fresh credit (burns the old URL), or
+          revoke (returns URL to the pool).
         </p>
       </div>
 

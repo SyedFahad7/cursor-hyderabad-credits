@@ -5,13 +5,8 @@ import { useState, type FormEvent } from "react";
 type State =
   | { kind: "idle" }
   | { kind: "loading" }
-  | { kind: "success"; email: string; creditUrl: string; emailDelivered: boolean }
-  | {
-      kind: "already";
-      email: string;
-      creditUrl: string | null;
-      emailDelivered: boolean;
-    }
+  | { kind: "success"; email: string; emailDelivered: boolean }
+  | { kind: "already"; email: string; emailDelivered: boolean }
   | { kind: "not_found" }
   | { kind: "no_credits" }
   | { kind: "rate_limited"; retry: number }
@@ -34,7 +29,6 @@ export function ClaimForm({ eventSlug }: { eventSlug: string }) {
       });
       const json = (await res.json()) as {
         outcome: string;
-        creditUrl?: string;
         emailDelivered?: boolean;
         retryAfter?: number;
         message?: string;
@@ -45,7 +39,6 @@ export function ClaimForm({ eventSlug }: { eventSlug: string }) {
           setState({
             kind: "success",
             email: trimmed,
-            creditUrl: json.creditUrl ?? "",
             emailDelivered: !!json.emailDelivered,
           });
           break;
@@ -53,7 +46,6 @@ export function ClaimForm({ eventSlug }: { eventSlug: string }) {
           setState({
             kind: "already",
             email: trimmed,
-            creditUrl: json.creditUrl ?? null,
             emailDelivered: !!json.emailDelivered,
           });
           break;
@@ -82,24 +74,23 @@ export function ClaimForm({ eventSlug }: { eventSlug: string }) {
 
   if (state.kind === "success") {
     return (
-      <CreditDelivery
+      <EmailOnlyResult
         tone="success"
-        title="Your Cursor credits are ready"
-        creditUrl={state.creditUrl}
-        emailDelivered={state.emailDelivered}
+        title="Check your email"
         email={state.email}
+        emailDelivered={state.emailDelivered}
+        alreadyClaimed={false}
       />
     );
   }
 
   if (state.kind === "already") {
     return (
-      <CreditDelivery
+      <EmailOnlyResult
         tone="warn"
-        title="You've already claimed your credit"
-        creditUrl={state.creditUrl}
-        emailDelivered={state.emailDelivered}
+        title="You've already claimed"
         email={state.email}
+        emailDelivered={state.emailDelivered}
         alreadyClaimed
       />
     );
@@ -120,15 +111,16 @@ export function ClaimForm({ eventSlug }: { eventSlug: string }) {
     );
   }
 
-  if (state.kind === "rate_limited") {
+  if (state.kind === "not_found") {
     return (
       <ResultPanel
         tone="warn"
-        title="Slow down a moment"
+        title="Email not on the list"
         body={
           <>
-            Too many attempts. Please try again in about{" "}
-            <strong className="text-ink">{state.retry}s</strong>.
+            We couldn&apos;t find <strong className="text-ink">{email}</strong>{" "}
+            for this event. Use the same email you registered with on Luma, or
+            reach out to the organizer if you believe this is a mistake.
           </>
         }
         action={
@@ -137,80 +129,150 @@ export function ClaimForm({ eventSlug }: { eventSlug: string }) {
             onClick={() => setState({ kind: "idle" })}
             className="btn-ghost mt-4 w-full"
           >
-            OK
+            Try a different email
           </button>
         }
       />
     );
   }
 
-  const loading = state.kind === "loading";
+  if (state.kind === "rate_limited") {
+    return (
+      <ResultPanel
+        tone="warn"
+        title="Too many attempts"
+        body={
+          <>
+            Please wait about {state.retry} seconds before trying again.
+          </>
+        }
+      />
+    );
+  }
+
+  if (state.kind === "error") {
+    return (
+      <ResultPanel
+        tone="error"
+        title="Something went wrong"
+        body={state.message}
+        action={
+          <button
+            type="button"
+            onClick={() => setState({ kind: "idle" })}
+            className="btn-ghost mt-4 w-full"
+          >
+            Try again
+          </button>
+        }
+      />
+    );
+  }
 
   return (
-    <form onSubmit={onSubmit} className="space-y-4 2xl:space-y-5">
+    <form onSubmit={onSubmit} className="space-y-3">
       <label className="block">
-        <span className="mb-2 block text-sm font-medium text-ink 2xl:text-[15px]">
-          Email
+        <span className="mb-1.5 block text-[13px] font-medium text-ink">
+          Email you registered with
         </span>
         <input
           type="email"
           required
-          autoFocus
-          inputMode="email"
           autoComplete="email"
-          spellCheck={false}
-          placeholder="you@example.com"
+          inputMode="email"
           value={email}
-          onChange={(e) => {
-            setEmail(e.target.value);
-            if (state.kind === "not_found" || state.kind === "error") {
-              setState({ kind: "idle" });
-            }
-          }}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@example.com"
           className="input"
-          disabled={loading}
+          disabled={state.kind === "loading"}
         />
-        <span className="mt-2 block text-[12px] text-ink-dim 2xl:text-[13px]">
-          Use the same email you signed up with on Luma.
-        </span>
       </label>
-
-      {state.kind === "not_found" && (
-        <div className="rounded-xl border border-rose-500/25 bg-rose-500/[0.06] p-4 text-left">
-          <p className="text-[14px] leading-relaxed text-rose-700 dark:text-rose-300/90">
-            This email is not registered for the event. Only approved
-            participants can obtain credits. Think it&apos;s a mistake? Contact
-            the event organizer.
-          </p>
-          <button
-            type="button"
-            onClick={() => {
-              setEmail("");
-              setState({ kind: "idle" });
-            }}
-            className="mt-3 text-[13px] text-ink underline underline-offset-2 transition hover:text-ink-muted"
-          >
-            Try with another email
-          </button>
-        </div>
-      )}
-
-      {state.kind === "error" && (
-        <div className="rounded-xl border border-rose-500/25 bg-rose-500/[0.06] p-4 text-[14px] text-rose-700 dark:text-rose-300/90">
-          {state.message}. Please try again.
-        </div>
-      )}
-
-      <button type="submit" disabled={loading || !email} className="btn-primary">
-        {loading ? (
-          <>
-            <Spinner /> Sending…
-          </>
+      <button
+        type="submit"
+        disabled={state.kind === "loading"}
+        className="btn-primary w-full"
+      >
+        {state.kind === "loading" ? (
+          <span className="inline-flex items-center justify-center gap-2">
+            <Spinner />
+            Claiming…
+          </span>
         ) : (
-          "Get my credit"
+          "Get my Cursor credits"
         )}
       </button>
+      <p className="text-center text-[12.5px] text-ink-dim">
+        We&apos;ll email your unique credit link. It won&apos;t be shown on this
+        page.
+      </p>
     </form>
+  );
+}
+
+function EmailOnlyResult({
+  tone,
+  title,
+  email,
+  emailDelivered,
+  alreadyClaimed,
+}: {
+  tone: "success" | "warn";
+  title: string;
+  email: string;
+  emailDelivered: boolean;
+  alreadyClaimed: boolean;
+}) {
+  const tonePalette: Record<typeof tone, string> = {
+    success: "border-emerald-500/30 bg-emerald-500/[0.06]",
+    warn: "border-amber-400/30 bg-amber-400/[0.06]",
+  };
+  const dot: Record<typeof tone, string> = {
+    success: "bg-emerald-500",
+    warn: "bg-amber-400",
+  };
+
+  return (
+    <div className={`rounded-xl border p-5 ${tonePalette[tone]}`}>
+      <div className="flex items-center gap-2">
+        <span className={`h-2 w-2 rounded-full ${dot[tone]}`} />
+        <h3 className="text-[15px] font-semibold text-ink 2xl:text-[16px]">
+          {title}
+        </h3>
+      </div>
+
+      <div className="mt-3 space-y-2 text-[14px] leading-relaxed text-ink-muted">
+        {alreadyClaimed ? (
+          <p>
+            A credit was already assigned for{" "}
+            <strong className="text-ink">{email}</strong>.
+          </p>
+        ) : (
+          <p>
+            Your credit is ready for{" "}
+            <strong className="text-ink">{email}</strong>.
+          </p>
+        )}
+
+        {emailDelivered ? (
+          <p>
+            We emailed the unique link to that address
+            {alreadyClaimed ? " again" : ""}. Check inbox and spam — it can take
+            a minute.
+          </p>
+        ) : (
+          <p className="text-amber-700 dark:text-amber-300/90">
+            We couldn&apos;t send the email just now. Please try again in a
+            moment, or contact the organizer so they can resend it.
+          </p>
+        )}
+
+        <p className="text-[12.5px] text-ink-dim">
+          For security, the credit link is only sent by email — never shown on
+          this page. Redeem while logged into the correct Cursor account
+          (individual plans only).
+        </p>
+      </div>
+    </div>
   );
 }
 
@@ -225,7 +287,7 @@ function ResultPanel({
   body: React.ReactNode;
   action?: React.ReactNode;
 }) {
-  const toneStyles: Record<typeof tone, string> = {
+  const border: Record<typeof tone, string> = {
     success: "border-emerald-500/30 bg-emerald-500/[0.06]",
     warn: "border-amber-400/30 bg-amber-400/[0.06]",
     error: "border-rose-500/30 bg-rose-500/[0.06]",
@@ -236,124 +298,13 @@ function ResultPanel({
     error: "bg-rose-500",
   };
   return (
-    <div className={`rounded-xl border p-5 ${toneStyles[tone]}`}>
+    <div className={`rounded-xl border p-5 ${border[tone]}`}>
       <div className="flex items-center gap-2">
         <span className={`h-2 w-2 rounded-full ${dot[tone]}`} />
         <h3 className="text-[15px] font-semibold text-ink">{title}</h3>
       </div>
       <p className="mt-2 text-[14px] leading-relaxed text-ink-muted">{body}</p>
       {action}
-    </div>
-  );
-}
-
-function CreditDelivery({
-  tone,
-  title,
-  creditUrl,
-  emailDelivered,
-  email,
-  alreadyClaimed,
-}: {
-  tone: "success" | "warn";
-  title: string;
-  creditUrl: string | null;
-  emailDelivered: boolean;
-  email: string;
-  alreadyClaimed?: boolean;
-}) {
-  const [copied, setCopied] = useState(false);
-
-  const tonePalette: Record<typeof tone, string> = {
-    success: "border-emerald-500/30 bg-emerald-500/[0.06]",
-    warn: "border-amber-400/30 bg-amber-400/[0.06]",
-  };
-  const dot: Record<typeof tone, string> = {
-    success: "bg-emerald-500",
-    warn: "bg-amber-400",
-  };
-
-  async function copyToClipboard() {
-    if (!creditUrl) return;
-    try {
-      await navigator.clipboard.writeText(creditUrl);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1800);
-    } catch {
-      // Fallback: select the input
-    }
-  }
-
-  return (
-    <div className={`rounded-xl border p-5 ${tonePalette[tone]}`}>
-      <div className="flex items-center gap-2">
-        <span className={`h-2 w-2 rounded-full ${dot[tone]}`} />
-        <h3 className="text-[15px] font-semibold text-ink 2xl:text-[16px]">
-          {title}
-        </h3>
-      </div>
-
-      {alreadyClaimed && (
-        <p className="mt-2 text-[13.5px] leading-relaxed text-ink-muted">
-          <strong className="text-ink">{email}</strong> already has a credit
-          assigned. Here it is again — save it somewhere safe.
-        </p>
-      )}
-
-      {creditUrl ? (
-        <>
-          <a
-            href={creditUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="btn-primary mt-4"
-          >
-            Open my Cursor credits
-          </a>
-
-          <div className="mt-3 rounded-lg border border-line bg-bg-subtle p-3">
-            <p className="mb-1.5 text-[11px] font-medium uppercase tracking-wide text-ink-dim">
-              Your link
-            </p>
-            <div className="flex items-center gap-2">
-              <code className="flex-1 truncate text-[12.5px] text-ink">
-                {creditUrl}
-              </code>
-              <button
-                type="button"
-                onClick={copyToClipboard}
-                className="shrink-0 rounded-md border border-line bg-bg-panel px-2.5 py-1 text-[12px] text-ink-muted transition hover:text-ink"
-              >
-                {copied ? "Copied" : "Copy"}
-              </button>
-            </div>
-          </div>
-
-          <div className="mt-4 space-y-1.5 text-[13px] leading-relaxed text-ink-muted">
-            {emailDelivered ? (
-              <p>
-                We also emailed this link to{" "}
-                <strong className="text-ink">{email}</strong> — it can take a
-                minute to arrive (check spam if needed).
-              </p>
-            ) : (
-              <p className="text-amber-700 dark:text-amber-300/90">
-                <strong>Save this link now</strong> — we couldn&apos;t email it
-                to you, but the link above is yours.
-              </p>
-            )}
-            <p className="text-[12.5px] text-ink-dim">
-              Tip: redeem while logged into the correct Cursor account. Credits
-              work for individual accounts only, not Team plans.
-            </p>
-          </div>
-        </>
-      ) : (
-        <p className="mt-2 text-[14px] leading-relaxed text-ink-muted">
-          We couldn&apos;t retrieve your credit link. Please contact the
-          organizer.
-        </p>
-      )}
     </div>
   );
 }
