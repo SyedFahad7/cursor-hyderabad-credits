@@ -18,12 +18,12 @@ const Body = z.object({
 
 type GiftRow = {
   status: "success" | "invalid_email" | "event_not_found" | "no_credits";
-  cursor_url: string | null;
-  event_id: string | null;
-  event_name: string | null;
-  event_slug: string | null;
-  credit_id: string | null;
-  attendee_id: string | null;
+  gift_cursor_url: string | null;
+  gift_event_id: string | null;
+  gift_event_name: string | null;
+  gift_event_slug: string | null;
+  gift_credit_id: string | null;
+  gift_attendee_id: string | null;
 };
 
 export async function POST(req: Request) {
@@ -81,7 +81,7 @@ export async function POST(req: Request) {
   }
   if (row.status === "no_credits") {
     await logClaimAttempt({
-      eventId: row.event_id,
+      eventId: row.gift_event_id,
       email: body.email.trim().toLowerCase(),
       ip: "admin",
       ua: "admin-gift",
@@ -100,7 +100,12 @@ export async function POST(req: Request) {
     );
   }
 
-  if (row.status !== "success" || !row.cursor_url || !row.event_id || !row.attendee_id) {
+  if (
+    row.status !== "success" ||
+    !row.gift_cursor_url ||
+    !row.gift_event_id ||
+    !row.gift_attendee_id
+  ) {
     return NextResponse.json(
       { message: `Gift failed (${row.status}).` },
       { status: 500 },
@@ -110,7 +115,7 @@ export async function POST(req: Request) {
   const { data: event } = await sb
     .from("events")
     .select("name,host,organizer,event_date")
-    .eq("id", row.event_id)
+    .eq("id", row.gift_event_id)
     .single();
 
   if (!event) {
@@ -125,7 +130,7 @@ export async function POST(req: Request) {
     await sendCreditEmail({
       to: body.email.trim().toLowerCase(),
       name: body.name?.trim() || null,
-      creditUrl: buildTrackedCreditUrl(row.attendee_id, row.cursor_url),
+      creditUrl: buildTrackedCreditUrl(row.gift_attendee_id, row.gift_cursor_url),
       event,
       purpose: "gift",
     });
@@ -133,13 +138,13 @@ export async function POST(req: Request) {
     await sb
       .from("attendees")
       .update({ credit_email_sent_at: new Date().toISOString() })
-      .eq("id", row.attendee_id);
+      .eq("id", row.gift_attendee_id);
   } catch (e) {
     console.warn("[gift] email failed", e);
   }
 
   await logClaimAttempt({
-    eventId: row.event_id,
+    eventId: row.gift_event_id,
     email: body.email.trim().toLowerCase(),
     ip: "admin",
     ua: "admin-gift",
@@ -151,10 +156,10 @@ export async function POST(req: Request) {
   return NextResponse.json({
     ok: true,
     emailDelivered,
-    eventName: row.event_name,
-    eventSlug: row.event_slug,
+    eventName: row.gift_event_name,
+    eventSlug: row.gift_event_slug,
     message: emailDelivered
-      ? `Gift sent to ${body.email.trim().toLowerCase()} from “${row.event_name}”.`
-      : `Credit reserved from “${row.event_name}”, but email failed — use Resend on Attendees.`,
+      ? `Gift sent to ${body.email.trim().toLowerCase()} from “${row.gift_event_name}”.`
+      : `Credit reserved from “${row.gift_event_name}”, but email failed — use Resend on Attendees.`,
   });
 }
