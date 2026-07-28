@@ -1,4 +1,4 @@
--- =============================================================================
+Dekhata Prabhu Kathum prompt-- =============================================================================
 -- LUMA CHECK-IN → AUTO CREDIT MIGRATION
 -- Adds events.luma_event_id mapping + webhook_deliveries idempotency table.
 -- Run once in the Supabase SQL editor on an existing database.

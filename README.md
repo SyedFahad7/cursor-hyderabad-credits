@@ -31,6 +31,7 @@ Each event has its own attendee list, its own credit pool, and its own branded U
 - **Events**: full CRUD — create, toggle active, delete (only if empty). Also **download leftovers** (unused credit URLs CSV), **transfer leftovers** to another event, and optional **Luma event ID** for QR check-in → auto credit email.
 - **Luma check-in auto credit** (Luma Plus): when you scan a guest’s ticket with Luma’s built-in QR scanner, a verified webhook assigns a pool credit and emails it immediately. Approved guests are also synced into the allowlist on registration.
 - **Activity** tab: live claim/webhook logs (who, when, email sent/failed), Luma delivery outcomes, and credit-link click analytics via tracked email links.
+- **Gift** tab: send leftover credits to any email — **Auto** (oldest event with leftovers) or **Select event** pool.
 - **Attendees**: search by email, filter by event + status (all / claimed / unclaimed), **resend** credit email, **reissue** a fresh credit (burns the old URL), or **revoke** (returns URL to the pool).
 - **Public claim is email-only**: the credit URL is never shown in the browser — only emailed to the submitted address.
 - **Credits**: full view of the credit pool per event (used / available).
@@ -85,7 +86,8 @@ npm install
 5. **Adding Luma check-in auto credit?** Run **`supabase/luma-checkin-migration.sql`** once (adds `events.luma_event_id` + `webhook_deliveries`).
 6. **Adding Activity tab logging?** Run **`supabase/activity-logging-migration.sql`** once (email delivery + click fields).
 7. **Adding Reissue (burn + fresh credit)?** Run **`supabase/reissue-credit-migration.sql`** once.
-8. Go to **Project Settings → API** and copy:
+8. **Adding Gift leftovers?** Run **`supabase/gift-credit-migration.sql`** once.
+9. Go to **Project Settings → API** and copy:
    - `URL` → `NEXT_PUBLIC_SUPABASE_URL`
    - `publishable` (sb_publishable_…) → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `secret` (sb_secret_…) → `SUPABASE_SERVICE_ROLE_KEY` **(server-only, keep secret)**

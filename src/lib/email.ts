@@ -110,6 +110,8 @@ type SendCreditArgs = {
   name?: string | null;
   creditUrl: string;
   event: Pick<Event, "name" | "host" | "organizer" | "event_date">;
+  /** claim = event thank-you email; gift = complimentary leftover credit */
+  purpose?: "claim" | "gift";
 };
 
 export async function sendCreditEmail({
@@ -117,9 +119,13 @@ export async function sendCreditEmail({
   name,
   creditUrl,
   event,
+  purpose = "claim",
 }: SendCreditArgs) {
   const env = getServerEnv();
-  const subject = `Free Cursor Credits from ${event.name} | Thank you for Attending`;
+  const subject =
+    purpose === "gift"
+      ? `A gift: free Cursor credits from ${event.name}`
+      : `Free Cursor Credits from ${event.name} | Thank you for Attending`;
   const greetingName = name?.trim() ? name.trim().split(" ")[0] : "there";
 
   const html = renderHtml({
@@ -127,8 +133,9 @@ export async function sendCreditEmail({
     creditUrl,
     event,
     logoUrl: resolveLogoUrl(),
+    purpose,
   });
-  const text = renderText({ greetingName, creditUrl, event });
+  const text = renderText({ greetingName, creditUrl, event, purpose });
 
   const transport = detectTransport();
 
@@ -174,15 +181,22 @@ function renderText({
   greetingName,
   creditUrl,
   event,
+  purpose = "claim",
 }: {
   greetingName: string;
   creditUrl: string;
   event: SendCreditArgs["event"];
+  purpose?: "claim" | "gift";
 }) {
+  const intro =
+    purpose === "gift"
+      ? `You've been gifted free Cursor credits from ${event.name}.`
+      : `Thanks for attending ${event.name}.`;
+
   return [
     `Hi ${greetingName},`,
     "",
-    `Thanks for attending ${event.name}.`,
+    intro,
     "",
     "Your unique Cursor credits link:",
     creditUrl,
@@ -205,11 +219,13 @@ function renderHtml({
   creditUrl,
   event,
   logoUrl,
+  purpose = "claim",
 }: {
   greetingName: string;
   creditUrl: string;
   event: SendCreditArgs["event"];
   logoUrl: string | null;
+  purpose?: "claim" | "gift";
 }) {
   const dateLine = event.event_date
     ? `${escapeHtml(event.name)} &middot; ${escapeHtml(formatDate(event.event_date))}`
@@ -218,6 +234,13 @@ function renderHtml({
   const hostHtml = event.host
     ? `<span style="color:${COLORS.textMuted};">Hosted by </span><a href="${X_PROFILE}" style="color:${COLORS.link};text-decoration:underline;text-underline-offset:2px;"><span style="color:${COLORS.link};">${escapeHtml(event.host)}</span></a>`
     : "";
+
+  const headline =
+    purpose === "gift" ? "You've been gifted Cursor credits" : "Your Cursor credits are ready";
+  const introHtml =
+    purpose === "gift"
+      ? `<span style="color:${COLORS.textBody};">You've been gifted free Cursor credits from </span><strong class="t-primary" style="color:${COLORS.textPrimary};font-weight:600;">${escapeHtml(event.name)}</strong><span style="color:${COLORS.textBody};">. Tap the button below to redeem them.</span>`
+      : `<span style="color:${COLORS.textBody};">Thanks for attending </span><strong class="t-primary" style="color:${COLORS.textPrimary};font-weight:600;">${escapeHtml(event.name)}</strong><span style="color:${COLORS.textBody};">. Tap the button below to claim your Cursor credits.</span>`;
 
   // CSS block is small + uses only safe properties so Gmail keeps it.
   // No @import, no Google Fonts, no @font-face — Gmail strips the whole
@@ -301,7 +324,7 @@ function renderHtml({
                     : ""
                 }
                 <div class="t-primary" style="font-family:${FONT_STACK};font-weight:600;font-size:24px;line-height:1.3;margin:0 0 8px 0;color:${COLORS.textPrimary};letter-spacing:-0.01em;mso-line-height-rule:exactly;">
-                  Your Cursor credits are ready
+                  ${headline}
                 </div>
                 <div class="t-muted" style="font-family:${FONT_STACK};margin:0;color:${COLORS.textMuted};font-size:13.5px;letter-spacing:0.01em;mso-line-height-rule:exactly;">
                   ${dateLine}
@@ -316,7 +339,7 @@ function renderHtml({
                   <span style="color:${COLORS.textBody};">Hi ${escapeHtml(greetingName)},</span>
                 </p>
                 <p class="t-body" style="margin:0 0 18px 0;color:${COLORS.textBody};font-family:${FONT_STACK};font-size:15px;line-height:1.65;mso-line-height-rule:exactly;">
-                  <span style="color:${COLORS.textBody};">Thanks for attending </span><strong class="t-primary" style="color:${COLORS.textPrimary};font-weight:600;">${escapeHtml(event.name)}</strong><span style="color:${COLORS.textBody};">. Tap the button below to claim your Cursor credits.</span>
+                  ${introHtml}
                 </p>
               </td>
             </tr>
