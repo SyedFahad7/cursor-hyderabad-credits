@@ -87,7 +87,9 @@ npm install
 6. **Adding Activity tab logging?** Run **`supabase/activity-logging-migration.sql`** once (email delivery + click fields).
 7. **Adding Reissue (burn + fresh credit)?** Run **`supabase/reissue-credit-migration.sql`** once.
 8. **Adding Gift leftovers?** Run **`supabase/gift-credit-migration.sql`** once.
-9. Go to **Project Settings → API** and copy:
+9. **Adding the admin debug-logs panel?** Run **`supabase/debug-logs-migration.sql`** once (`system_logs` table).
+10. **Adding check-in tracking + "Email waiting check-ins"?** Run **`supabase/checkin-tracking-migration.sql`** once (`attendees.checked_in_at`).
+11. Go to **Project Settings → API** and copy:
    - `URL` → `NEXT_PUBLIC_SUPABASE_URL`
    - `publishable` (sb_publishable_…) → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
    - `secret` (sb_secret_…) → `SUPABASE_SERVICE_ROLE_KEY` **(server-only, keep secret)**

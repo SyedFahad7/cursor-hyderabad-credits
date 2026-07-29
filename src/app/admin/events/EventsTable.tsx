@@ -84,6 +84,31 @@ export function EventsTable({ rows }: { rows: EventStats[] }) {
     }
   }
 
+  async function sendMissing(id: string, name: string) {
+    if (
+      !confirm(
+        `Email credits to everyone who checked in at "${name}" but got nothing because the pool was empty?\n\nEach person gets one credit from the current pool (oldest check-in first). People who already have a credit are untouched.`,
+      )
+    )
+      return;
+    setBusyId(id);
+    setErr(null);
+    setMsg(null);
+    try {
+      const res = await fetch(`/api/admin/events/${id}/send-missing`, {
+        method: "POST",
+      });
+      const json = (await res.json()) as { message?: string };
+      if (!res.ok) throw new Error(json.message ?? "Failed");
+      setMsg(json.message ?? "Done.");
+      router.refresh();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function transferLeftovers(
     source: EventStats,
     targetEventId: string,
@@ -237,6 +262,15 @@ export function EventsTable({ rows }: { rows: EventStats[] }) {
                         >
                           Download leftovers
                         </a>
+                        <button
+                          type="button"
+                          onClick={() => sendMissing(e.event_id, e.name)}
+                          disabled={busy}
+                          className="btn-ghost h-8 px-3 text-xs disabled:opacity-40"
+                          title="Email a credit to attendees who checked in while the pool was empty"
+                        >
+                          Email waiting check-ins
+                        </button>
                         <button
                           type="button"
                           onClick={() => toggleActive(e.event_id, !e.active)}

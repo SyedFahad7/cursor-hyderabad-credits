@@ -57,32 +57,57 @@ async function upsertAttendee(args: {
   eventId: string;
   email: string;
   name: string | null;
+  /** When true, stamp checked_in_at (first check-in only, never overwritten). */
+  checkedIn?: boolean;
 }) {
   const sb = getSupabaseAdmin();
   const email = args.email.trim().toLowerCase();
 
   const { data: existing } = await sb
     .from("attendees")
-    .select("id,name")
+    .select("id,name,checked_in_at")
     .eq("event_id", args.eventId)
     .eq("email", email)
     .maybeSingle();
 
   if (existing) {
-    if (args.name && !existing.name) {
-      await sb
+    const patch: Record<string, unknown> = {};
+    if (args.name && !existing.name) patch.name = args.name;
+    if (args.checkedIn && !existing.checked_in_at) {
+      patch.checked_in_at = new Date().toISOString();
+    }
+    if (Object.keys(patch).length > 0) {
+      const { error } = await sb
         .from("attendees")
-        .update({ name: args.name })
+        .update(patch)
         .eq("id", existing.id);
+      // 42703 = column missing (checkin-tracking-migration.sql not run yet).
+      // Never fail the check-in over tracking metadata.
+      if (error?.code === "42703" && "checked_in_at" in patch) {
+        await logSystem("warn", SRC, "checked_in_at column missing — run checkin-tracking-migration.sql");
+        delete patch.checked_in_at;
+        if (Object.keys(patch).length > 0) {
+          await sb.from("attendees").update(patch).eq("id", existing.id);
+        }
+      }
     }
     return;
   }
 
-  const { error } = await sb.from("attendees").insert({
+  let { error } = await sb.from("attendees").insert({
     event_id: args.eventId,
     email,
     name: args.name,
+    ...(args.checkedIn && { checked_in_at: new Date().toISOString() }),
   });
+  if (error?.code === "42703" && args.checkedIn) {
+    await logSystem("warn", SRC, "checked_in_at column missing — run checkin-tracking-migration.sql");
+    ({ error } = await sb.from("attendees").insert({
+      event_id: args.eventId,
+      email,
+      name: args.name,
+    }));
+  }
   if (error && error.code !== "23505") {
     throw new Error(error.message);
   }
@@ -257,6 +282,7 @@ export async function POST(req: Request) {
         eventId: event.id,
         email: guest.email,
         name: guest.name,
+        checkedIn: true,
       });
     } catch (e) {
       console.error("[luma webhook] check-in upsert failed", e);

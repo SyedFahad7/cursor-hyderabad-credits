@@ -56,6 +56,7 @@ create table if not exists public.attendees (
   claimed_at              timestamptz,
   credit_email_sent_at    timestamptz,
   credit_link_clicked_at  timestamptz,
+  checked_in_at           timestamptz,
   credit_id   uuid,
   created_at  timestamptz not null default now()
 );

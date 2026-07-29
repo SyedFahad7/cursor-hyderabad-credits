@@ -32,7 +32,9 @@ export default async function AttendeesPage({
 
   let query = sb
     .from("attendees")
-    .select("id,event_id,email,name,claimed,claimed_at,credit_id,created_at")
+    .select(
+      "id,event_id,email,name,claimed,claimed_at,credit_id,checked_in_at,created_at",
+    )
     .order("created_at", { ascending: false })
     .limit(200);
 

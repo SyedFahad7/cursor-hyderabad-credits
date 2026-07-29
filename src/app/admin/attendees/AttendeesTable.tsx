@@ -12,6 +12,7 @@ export type AttendeeRow = {
   claimed: boolean;
   claimed_at: string | null;
   credit_id: string | null;
+  checked_in_at: string | null;
   created_at: string;
   event_name?: string;
   event_slug?: string;
@@ -225,15 +226,22 @@ export function AttendeesTable({
                 </Td>
                 <Td className="text-ink-muted">{r.name ?? "—"}</Td>
                 <Td>
-                  <span
-                    className={`rounded-full border px-2 py-0.5 text-[11px] ${
-                      r.claimed
-                        ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-200"
-                        : "border-line bg-bg-subtle text-ink-muted"
-                    }`}
-                  >
-                    {r.claimed ? "claimed" : "pending"}
-                  </span>
+                  {r.claimed ? (
+                    <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] text-emerald-700 dark:text-emerald-200">
+                      claimed
+                    </span>
+                  ) : r.checked_in_at ? (
+                    <span
+                      className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] text-amber-700 dark:text-amber-200"
+                      title={`Checked in ${fmtDateTime(r.checked_in_at)} but no credits were left. Import more URLs, then use "Email waiting check-ins" on the Events page.`}
+                    >
+                      checked in · no credit
+                    </span>
+                  ) : (
+                    <span className="rounded-full border border-line bg-bg-subtle px-2 py-0.5 text-[11px] text-ink-muted">
+                      pending
+                    </span>
+                  )}
                 </Td>
                 <Td className="text-ink-muted">
                   {r.claimed_at ? fmtDateTime(r.claimed_at) : "—"}
