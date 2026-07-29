@@ -2,6 +2,7 @@ import { getSupabaseAdmin, type Event } from "@/lib/supabase";
 import { sendCreditEmail } from "@/lib/email";
 import { getEventBySlug } from "@/lib/events";
 import { buildTrackedCreditUrl } from "@/lib/trackLink";
+import { logSystem, errMessage } from "@/lib/systemLog";
 
 export type ClaimRpcStatus =
   | "success"
@@ -153,6 +154,12 @@ export async function claimAndEmailCredit(args: {
 
     if (error) {
       console.error("[claimCredit] rpc error", error);
+      await logSystem("error", "claim", "claim_attendee_credit RPC failed", {
+        email,
+        event: eventSlug,
+        source,
+        error: error.message,
+      });
       await logClaimAttempt({
         eventId: event.id,
         email,
@@ -267,6 +274,12 @@ export async function claimAndEmailCredit(args: {
             emailDelivered = true;
           } catch (e) {
             console.warn("[claimCredit] resend on already_claimed failed", e);
+            await logSystem("error", "email", "Credit email failed (already_claimed resend)", {
+              email,
+              event: eventSlug,
+              source,
+              error: errMessage(e),
+            });
           }
         }
         await logClaimAttempt({
@@ -323,6 +336,12 @@ export async function claimAndEmailCredit(args: {
             emailDelivered = true;
           } catch (e) {
             console.warn("[claimCredit] email send failed (claim still valid)", e);
+            await logSystem("error", "email", "Credit email failed (claim succeeded, email did not send)", {
+              email,
+              event: eventSlug,
+              source,
+              error: errMessage(e),
+            });
           }
         }
 
@@ -367,6 +386,12 @@ export async function claimAndEmailCredit(args: {
     }
   } catch (e) {
     console.error("[claimCredit] unhandled", e);
+    await logSystem("error", "claim", "Unhandled error in claimAndEmailCredit", {
+      email,
+      event: eventSlug,
+      source,
+      error: errMessage(e),
+    });
     await logClaimAttempt({
       eventId: event.id,
       email,

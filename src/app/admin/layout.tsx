@@ -2,6 +2,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { CursorLogo } from "@/components/CursorLogo";
 import { LogoutButton } from "./LogoutButton";
 import { AdminNav } from "./AdminNav";
+import { DebugLogsWidget } from "./DebugLogsWidget";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -37,6 +38,8 @@ export default function AdminLayout({
       <div className="relative mx-auto max-w-6xl px-4 py-6 md:px-6 md:py-8 2xl:max-w-[1400px] 2xl:py-10 3xl:max-w-[1600px]">
         {children}
       </div>
+
+      <DebugLogsWidget />
     </div>
   );
 }

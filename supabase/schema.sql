@@ -511,6 +511,19 @@ grant execute on function public.transfer_unused_credits(uuid, uuid) to service_
 -- ============================================================================
 -- RLS
 -- ============================================================================
+-- Debug/system logs surfaced in the admin floating debug panel
+create table if not exists public.system_logs (
+  id         bigserial primary key,
+  level      text not null default 'info',
+  source     text not null,
+  message    text not null,
+  detail     jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists system_logs_created_at_idx
+  on public.system_logs (created_at desc);
+
 -- Idempotency for inbound Luma webhooks (Webhook-Id header)
 create table if not exists public.webhook_deliveries (
   id           text primary key,
@@ -529,12 +542,14 @@ alter table public.attendees          enable row level security;
 alter table public.credit_links       enable row level security;
 alter table public.claim_attempts     enable row level security;
 alter table public.webhook_deliveries enable row level security;
+alter table public.system_logs        enable row level security;
 
 drop policy if exists "deny all" on public.events;
 drop policy if exists "deny all" on public.attendees;
 drop policy if exists "deny all" on public.credit_links;
 drop policy if exists "deny all" on public.claim_attempts;
 drop policy if exists "deny all" on public.webhook_deliveries;
+drop policy if exists "deny all" on public.system_logs;
 
 -- ============================================================================
 -- Views for the admin dashboard

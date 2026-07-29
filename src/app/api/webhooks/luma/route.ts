@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getEventByLumaId } from "@/lib/events";
 import { claimAndEmailCredit } from "@/lib/claimCredit";
+import { logSystem, errMessage } from "@/lib/systemLog";
 import {
   isLumaApproved,
   parseLumaWebhookPayload,
@@ -10,6 +11,8 @@ import {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const SRC = "luma-webhook";
 
 /** Insert-first idempotency. Returns false if this Webhook-Id was already seen. */
 async function beginDelivery(
@@ -25,6 +28,10 @@ async function beginDelivery(
   if (error?.code === "23505") return false;
   if (error) {
     console.error("[luma webhook] delivery insert failed", error);
+    await logSystem("error", SRC, "webhook_deliveries insert failed", {
+      webhookId: id,
+      error: error.message,
+    });
     throw new Error(error.message);
   }
   return true;
@@ -85,6 +92,7 @@ export async function POST(req: Request) {
   const secret = process.env.LUMA_WEBHOOK_SECRET?.trim();
   if (!secret) {
     console.error("[luma webhook] LUMA_WEBHOOK_SECRET is not set");
+    await logSystem("error", SRC, "LUMA_WEBHOOK_SECRET is not set on server");
     return NextResponse.json(
       { message: "Webhook not configured." },
       { status: 503 },
@@ -109,10 +117,16 @@ export async function POST(req: Request) {
   });
   if (!verified.ok) {
     console.warn("[luma webhook] signature failed", verified.reason);
+    await logSystem("error", SRC, `Signature verification failed: ${verified.reason}`, {
+      webhookId,
+      hasSignatureHeader: Boolean(signature),
+      hasTimestampHeader: Boolean(timestamp),
+    });
     return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
   if (!webhookId) {
+    await logSystem("warn", SRC, "Missing Webhook-Id header");
     return NextResponse.json({ message: "Missing Webhook-Id" }, { status: 400 });
   }
 
@@ -121,6 +135,11 @@ export async function POST(req: Request) {
     parsed = parseLumaWebhookPayload(rawBody);
   } catch (e) {
     console.warn("[luma webhook] parse failed", e);
+    await logSystem("error", SRC, "Payload parse failed", {
+      webhookId,
+      error: errMessage(e),
+      bodySnippet: rawBody.slice(0, 500),
+    });
     try {
       if (await beginDelivery(webhookId, "unknown")) {
         await finishDelivery(webhookId, "parse_error");
@@ -149,11 +168,19 @@ export async function POST(req: Request) {
     type !== "ticket.registered"
   ) {
     await finishDelivery(webhookId, "ignored_type");
+    await logSystem("info", SRC, `Ignored webhook type: ${type}`, { webhookId });
     return NextResponse.json({ ok: true, ignored: true });
   }
 
   if (!guest || !guest.lumaEventId) {
     await finishDelivery(webhookId, "missing_guest_or_event");
+    await logSystem("warn", SRC, "Payload missing guest email or Luma event id", {
+      webhookId,
+      type,
+      hasGuest: Boolean(guest),
+      lumaEventId: guest?.lumaEventId ?? null,
+      bodySnippet: rawBody.slice(0, 500),
+    });
     return NextResponse.json({ ok: true, ignored: true });
   }
 
@@ -161,6 +188,13 @@ export async function POST(req: Request) {
   if (!event) {
     await finishDelivery(webhookId, "unmapped_event", {
       email: guest.email,
+    });
+    await logSystem("warn", SRC, "No portal event mapped to this Luma event id", {
+      webhookId,
+      type,
+      lumaEventId: guest.lumaEventId,
+      email: guest.email,
+      hint: "Set this Luma event ID on the event in /admin/events",
     });
     return NextResponse.json({ ok: true, ignored: true, reason: "unmapped_event" });
   }
@@ -177,9 +211,19 @@ export async function POST(req: Request) {
         email: guest.email,
         eventId: event.id,
       });
+      await logSystem("info", SRC, `Allowlist synced: ${guest.email}`, {
+        webhookId,
+        event: event.slug,
+      });
       return NextResponse.json({ ok: true, action: "allowlist_upsert" });
     } catch (e) {
       console.error("[luma webhook] allowlist upsert failed", e);
+      await logSystem("error", SRC, "Allowlist upsert failed", {
+        webhookId,
+        email: guest.email,
+        event: event.slug,
+        error: errMessage(e),
+      });
       await finishDelivery(webhookId, "allowlist_upsert_error", {
         email: guest.email,
         eventId: event.id,
@@ -200,6 +244,11 @@ export async function POST(req: Request) {
         email: guest.email,
         eventId: event.id,
       });
+      await logSystem("warn", SRC, `Checked in but not approved: ${guest.email}`, {
+        webhookId,
+        event: event.slug,
+        approvalStatus: guest.approvalStatus,
+      });
       return NextResponse.json({ ok: true, ignored: true });
     }
 
@@ -211,6 +260,12 @@ export async function POST(req: Request) {
       });
     } catch (e) {
       console.error("[luma webhook] check-in upsert failed", e);
+      await logSystem("error", SRC, "Check-in attendee upsert failed", {
+        webhookId,
+        email: guest.email,
+        event: event.slug,
+        error: errMessage(e),
+      });
       await finishDelivery(webhookId, "checkin_upsert_error", {
         email: guest.email,
         eventId: event.id,
@@ -231,6 +286,24 @@ export async function POST(req: Request) {
       email: guest.email,
       eventId: event.id,
     });
+    await logSystem(
+      result.outcome === "success" || result.outcome === "already_claimed"
+        ? result.emailDelivered
+          ? "info"
+          : "error"
+        : "warn",
+      SRC,
+      `Check-in claim for ${guest.email}: ${result.outcome}, email ${
+        result.emailDelivered ? "sent" : "NOT sent"
+      }`,
+      {
+        webhookId,
+        event: event.slug,
+        outcome: result.outcome,
+        emailDelivered: result.emailDelivered,
+        message: result.message ?? null,
+      },
+    );
     return NextResponse.json({
       ok: true,
       action: "checkin_claim",
@@ -242,6 +315,12 @@ export async function POST(req: Request) {
   await finishDelivery(webhookId, "no_action", {
     email: guest.email,
     eventId: event.id,
+  });
+  await logSystem("info", SRC, `No action for ${guest.email} (${type})`, {
+    webhookId,
+    event: event.slug,
+    approvalStatus: guest.approvalStatus,
+    checkedIn: guest.checkedIn,
   });
   return NextResponse.json({ ok: true, ignored: true });
 }
